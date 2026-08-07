@@ -152,6 +152,29 @@ const App = (function () {
     const dt = new Date(y, mo - 1, d);
     return dt.getFullYear() === y && dt.getMonth() === mo - 1 && dt.getDate() === d;
   }
+  // 日期框强制整体粘贴：取剪贴板全文一次填入，自动识别格式
+  // 清洗：只保留数字与 年月日/.- 分隔符，其余（"日期:"括号空格引号等）全部去掉
+  function cleanDateText(raw) {
+    return String(raw || '').replace(/[^\d年月\/\-.]+/g, '').trim();
+  }
+  function handleDatePaste(e) {
+    const t = e.target;
+    if (!t || !(t.id === 'inDate' || (t.classList && t.classList.contains('cell-date')))) return;
+    e.preventDefault();
+    const raw = (e.clipboardData || window.clipboardData).getData('text');
+    const clean = cleanDateText(raw);
+    const d = parseDateStr(clean) || parseDateStr(String(raw).trim());
+    if (d && isValidDateStr(d)) {
+      t.value = d;
+      showToast('日期已填入：' + d);
+      t.dispatchEvent(new Event('change', { bubbles: true })); // 触发联动保存
+    } else if (clean) {
+      t.value = clean;
+      showToast('⚠ 无法识别为日期，请用 2026-08-07 / 20260807 格式');
+    } else {
+      showToast('⚠ 剪贴板没有内容');
+    }
+  }
   function fmtDate(s) {
     if (!s) return '';
     const d = new Date(s);
@@ -761,6 +784,8 @@ const App = (function () {
         doImportFile(e.target.files[0]);
         e.target.value = '';
       });
+      // 日期框强制整体粘贴（今日页 + 历史页）
+      document.addEventListener('paste', handleDatePaste);
       switchTab('today');
     }).catch(function (err) {
       alert('初始化失败：' + err.message);
