@@ -251,6 +251,7 @@ const App = (function () {
       updatedAt: new Date().toISOString()
     };
     DB.put('records', rec).then(function () {
+      records.push(rec); // 同步内存数组（否则历史页读不到）
       return addAudit(fund.id, rec.id, '新建记录', '', estVol + '%', '预估' + estVol + '% / 月度' + rec.monthlyVol + '%');
     }).then(function () {
       recomputeChain(fund.id);
@@ -302,8 +303,16 @@ const App = (function () {
     let html = '<table class="grid"><thead><tr>' +
       '<th>日期</th><th>基金</th><th>预估%</th><th>实际%</th><th>月度%</th><th>档位</th><th>方向</th>' +
       '<th>调整明细</th><th>执行消耗%</th><th>最终累计%</th><th>操作</th></tr></thead><tbody>';
+    const initShown = {};
     recs.forEach(function (r) {
       const f = getFund(r.fundId);
+      // 每只基金第一条记录前插入"初始（基线）"行
+      if (f && !initShown[r.fundId]) {
+        initShown[r.fundId] = true;
+        html += '<tr class="init-row"><td>初始</td><td>' + esc(f.name) + '</td><td></td><td></td><td></td><td></td><td></td>' +
+          '<td>基线：金额 <b>' + round2(f.startCash) + '</b> / 份额 <b>' + round2(f.startShares) + '</b> / 累计 <b>' + f.startCumulative + '%</b></td>' +
+          '<td></td><td></td><td></td></tr>';
+      }
       const dirName = r.dir === 'sell' ? '卖' : (r.dir === 'buy' ? '买' : '—');
       const adjHtml = (r.adjustments || []).map(function (a) {
         return '<div class="adj-row"><b>调整' + a.idx + '</b> ' + (a.dir === 'sell' ? '卖' : (a.dir === 'buy' ? '买' : '')) +
