@@ -291,13 +291,12 @@ const App = (function () {
     }
     recomputeAll();
     const fundFilter = document.getElementById('histFundFilter');
-    const fOpts = '<option value="">全部基金</option>' + funds.map(function (f) {
-      return '<option value="' + esc(f.id) + '"' + (fundFilter.value === f.id ? ' selected' : '') + '>' + esc(f.name) + '</option>';
-    }).join('');
-    fundFilter.innerHTML = fOpts;
+    const kw = (fundFilter.value || '').trim().toLowerCase();
 
     const recs = sortRecords(records.filter(function (r) {
-      return !fundFilter.value || r.fundId === fundFilter.value;
+      if (!kw) return true;
+      const f = getFund(r.fundId);
+      return (f && f.name.toLowerCase().indexOf(kw) !== -1);
     }));
 
     let html = '<table class="grid"><thead><tr>' +
@@ -532,7 +531,7 @@ const App = (function () {
         curFundId = e.target.value;
         renderToday();
       });
-      document.getElementById('histFundFilter').addEventListener('change', renderHistory);
+      document.getElementById('histFundFilter').addEventListener('input', renderHistory);
       document.getElementById('fileImport').addEventListener('change', function (e) {
         doImportFile(e.target.files[0]);
         e.target.value = '';
