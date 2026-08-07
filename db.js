@@ -7,7 +7,7 @@
 
 const DB = (function () {
   const DB_NAME = 'fund-tool';
-  const DB_VER = 1;
+  const DB_VER = 2;
   let _db = null;
 
   function open() {
@@ -28,6 +28,9 @@ const DB = (function () {
         if (!db.objectStoreNames.contains('audit')) {
           const s = db.createObjectStore('audit', { keyPath: 'id', autoIncrement: true });
           s.createIndex('time', 'time', { unique: false });
+        }
+        if (!db.objectStoreNames.contains('meta')) {
+          db.createObjectStore('meta', { keyPath: 'id' });
         }
       };
       req.onsuccess = function () { _db = req.result; resolve(_db); };

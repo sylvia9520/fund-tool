@@ -84,7 +84,10 @@
 <div class="page" id="page-history">
   <div class="card">
     <div class="row"><label>筛选基金</label><select id="histFundFilter"></select></div>
-    <div class="hint">默认展示最近记录，上滑可查看更早；修改任意数值 → 联动重算 + 留痕 + 右上角提示。</div>
+    <div style="display:flex;justify-content:flex-end;margin-top:8px;">
+      <button class="btn primary" onclick="App.saveToOneDrive()">☁️ 一键上传 OneDrive</button>
+    </div>
+    <div class="hint">上传：首次选择 OneDrive 文件夹后自动记住，之后一键写入"理财基金v3版+日期+当日序号.xlsx"；不支持直传的浏览器自动降级下载。默认展示最近记录，上滑查看更早；修改任意数值 → 联动重算 + 留痕 + 右上角提示。</div>
   </div>
   <div class="grid-wrap" id="historyBox"></div>
   <div class="card" id="auditBox"></div>

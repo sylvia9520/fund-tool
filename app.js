@@ -15,6 +15,103 @@ const App = (function () {
 
   // ---------- 工具 ----------
   function round2(x) { return Math.round(x * 100) / 100; }
+  // OneDrive 文件名：理财基金v3版{YYYYMMDD}{当日序号}，同日序号递增，跨天重置 01
+  function genBackupNameCore(ymd, seq) {
+    var p = function (n) { return n < 10 ? '0' + n : '' + n; };
+    return '理财基金v3版' + ymd + p(seq) + '.xlsx';
+  }
+  function genBackupName() {
+    var d = new Date();
+    var p = function (n) { return n < 10 ? '0' + n : '' + n; };
+    var ymd = '' + d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate());
+    var st = { key: '', n: 0 };
+    try { st = JSON.parse(localStorage.getItem('fundToolSaveSeq') || '{"key":"","n":0}'); } catch (e) {}
+    var seq = (st.key === ymd) ? (st.n + 1) : 1;
+    localStorage.setItem('fundToolSaveSeq', JSON.stringify({ key: ymd, n: seq }));
+    return genBackupNameCore(ymd, seq);
+  }
+  // 记住 OneDrive 目录句柄（IndexedDB 可存 FileSystemHandle）
+  let odDirHandle = null;
+  function loadDirHandle() {
+    return DB.getAll('meta').then(function (list) {
+      const m = list.find(function (x) { return x.id === 'odDir'; });
+      odDirHandle = m ? m.handle : null;
+    }).catch(function () { odDirHandle = null; });
+  }
+  function saveDirHandle(handle) {
+    return DB.put('meta', { id: 'odDir', handle: handle, savedAt: new Date().toISOString() });
+  }
+  // 一键上传 OneDrive：首次选目录（记住），之后自动写文件
+  function saveToOneDrive() {
+    recomputeAll();
+    const fn = genBackupName();
+    const wb = buildWorkbook();
+    const data = XLSX_OBJ.write(wb, { bookType: 'xlsx', type: 'array' });
+    const blob = new Blob([data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const pickDir = function () {
+      return window.showDirectoryPicker().then(function (h) {
+        odDirHandle = h;
+        return saveDirHandle(h);
+      });
+    };
+    const writeToHandle = function (h) {
+      return h.getFileHandle(fn, { create: true }).then(function (fh) {
+        return fh.createWritable().then(function (w) {
+          return w.write(blob).then(function () { return w.close(); });
+        });
+      }).then(function () { return 'written'; });
+    };
+    const tryHandle = function () {
+      if (!odDirHandle) return Promise.resolve(null);
+      return odDirHandle.queryPermission ? odDirHandle.queryPermission({ mode: 'readwrite' }).then(function (st) {
+        if (st === 'granted') return writeToHandle(odDirHandle).then(function () { return true; });
+        if (odDirHandle.requestPermission) {
+          return odDirHandle.requestPermission({ mode: 'readwrite' }).then(function (st2) {
+            if (st2 === 'granted') return writeToHandle(odDirHandle).then(function () { return true; });
+            return null;
+          });
+        }
+        return null;
+      }) : null;
+    };
+    // 浏览器支持目录选择器 → 自动写；否则降级为下载
+    if (window.showDirectoryPicker) {
+      tryHandle().then(function (ok) {
+        if (ok) { showToast('已上传 OneDrive：' + fn + ' ✓'); return; }
+        return pickDir().then(function () { return writeToHandle(odDirHandle); }).then(function () {
+          showToast('已上传 OneDrive：' + fn + ' ✓');
+        }).catch(function (e) {
+          // 用户取消或失败 → 降级下载
+          fallbackDownload(fn, blob);
+        });
+      }).catch(function () { fallbackDownload(fn, blob); });
+    } else {
+      fallbackDownload(fn, blob);
+    }
+  }
+  function fallbackDownload(fn, blob) {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = fn;
+    a.click();
+    URL.revokeObjectURL(a.href);
+    showToast('已生成 ' + fn + '（浏览器不支持直传，请保存到 OneDrive）');
+  }
+  function buildWorkbook() {
+    const detail = EXPORT.buildDetailRows(funds, records);
+    const auditRows = audits.slice().sort(function (a, b) { return a.time < b.time ? 1 : -1; }).map(function (a) {
+      const f = getFund(a.fundId);
+      return { '时间': a.time, '基金': f ? f.name : '', '记录': a.recordId || '', '字段': a.field, '改前值': a.oldVal, '改后值': a.newVal, '说明': a.desc };
+    });
+    const fundRows = funds.map(function (f) {
+      return { '名称': f.name, '基金池': f.poolSize === undefined ? '' : f.poolSize, '基线金额': f.startCash, '基线份额': f.startShares, '基线累计波动%': f.startCumulative, '月度波动%': f.monthlyVol, '当前金额': f.cash, '当前份额': f.shares, '当前累计%': f.lastCumulative };
+    });
+    const wb = XLSX_OBJ.utils.book_new();
+    XLSX_OBJ.utils.book_append_sheet(wb, XLSX_OBJ.utils.json_to_sheet(detail), '每日计算明细');
+    XLSX_OBJ.utils.book_append_sheet(wb, XLSX_OBJ.utils.json_to_sheet(auditRows), '留痕记录');
+    XLSX_OBJ.utils.book_append_sheet(wb, XLSX_OBJ.utils.json_to_sheet(fundRows), '基金设置');
+    return wb;
+  }
   // 右上角 toast（5 秒自动消失）
   let toastTimer = null;
   function showToast(msg) {
@@ -367,7 +464,7 @@ const App = (function () {
           '<span class="after">剩资' + (a.cashAfter === undefined ? '' : a.cashAfter) + ' / 份' + (a.sharesAfter === undefined ? '' : a.sharesAfter) + '</span></div>';
       }).join('') || '<span style="color:#999">无调整</span>';
       html += '<tr>' +
-        '<td>' + fmtDate(r.date) + '</td>' +
+        '<td><input class="cell-date" data-rec="' + esc(r.id) + '" type="date" value="' + esc(r.date) + '"></td>' +
         '<td>' + esc(f ? f.name : r.fundId) + '</td>' +
         '<td><input class="cell-est" data-rec="' + esc(r.id) + '" type="number" step="0.1" value="' + esc(r.estVol) + '"></td>' +
         '<td><input class="cell-actual" data-rec="' + esc(r.id) + '" type="number" step="0.1" value="' + (r.actualVol === null || r.actualVol === undefined ? '' : r.actualVol) + '" placeholder="未录"></td>' +
@@ -425,7 +522,13 @@ const App = (function () {
       const rec = records.find(function (r) { return r.id === recId; });
       if (!rec) return;
       const v = t.value === '' ? '' : parseFloat(t.value);
-      if (t.classList.contains('cell-est')) {
+      if (t.classList.contains('cell-date')) {
+        // 日期手动写入（保持单日单记录）
+        const dup = records.find(function (x) { return x.id !== rec.id && x.fundId === rec.fundId && x.date === t.value; });
+        if (dup) { alert('该基金在 ' + t.value + ' 已有记录，不能重复。'); renderHistory(); return; }
+        if (!t.value) { alert('日期不能为空'); renderHistory(); return; }
+        updateRecordField(rec, 'date', t.value, '修改日期 ' + rec.date + '→' + t.value).then(renderHistory);
+      } else if (t.classList.contains('cell-est')) {
         updateRecordField(rec, 'estVol', v, '修改预估波动').then(renderHistory);
       } else if (t.classList.contains('cell-actual')) {
         updateRecordField(rec, 'actualVol', v, '修改实际波动').then(renderHistory);
@@ -615,6 +718,8 @@ const App = (function () {
       // 持久化递推后的当前值（保持数据一致）
       return Promise.all(funds.map(function (f) { return persistFund(f); }));
     }).then(function () {
+      return loadDirHandle();
+    }).then(function () {
       bindHistoryEvents();
       bindSettingsEvents();
       document.getElementById('fundSelect').addEventListener('change', function (e) {
@@ -636,7 +741,8 @@ const App = (function () {
     init: init, switchTab: switchTab, renderToday: renderToday, calcToday: calcToday,
     confirmToday: confirmToday, setActual: setActual, renderHistory: renderHistory,
     delRecord: delRecord, renderSettings: renderSettings, addFund: addFund, delFund: delFund,
-    goToday: goToday, doExportExcel: doExportExcel, doExportBackup: doExportBackup
+    goToday: goToday, doExportExcel: doExportExcel, doExportBackup: doExportBackup,
+    saveToOneDrive: saveToOneDrive, toggleAudit: toggleAudit
   };
 })();
 
