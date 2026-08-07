@@ -38,6 +38,13 @@ function recomputeChain(fund, records) {
     r.executedVol = (r.executedVol === undefined || r.executedVol === '') ? calc.consumed : Number(r.executedVol);
     const vol = (r.actualVol === undefined || r.actualVol === null || r.actualVol === '') ? Number(r.estVol) : Number(r.actualVol);
     r.finalCumulative = CALC.finalCumulative(cum, vol, r.executedVol);
+    // 份额补录：覆盖递推份额，作为后续卖出基础
+    if (r.sharesActual !== undefined && r.sharesActual !== null && String(r.sharesActual) !== '') {
+      s2 = round2(Number(r.sharesActual));
+      if (r.adjustments && r.adjustments.length) {
+        r.adjustments[r.adjustments.length - 1].sharesAfter = s2;
+      }
+    }
     r.cashAfterAll = c2; r.sharesAfterAll = s2;
     cash = c2; shares = s2; cum = r.finalCumulative;
   });
@@ -86,6 +93,26 @@ records[0].actualVol = -2; // 实际只跌2%但执行了2.5消耗
 recomputeChain(fund, records);
 check('记录1 最终累计(0+(-2)-2.5=-4.5)', records[0].finalCumulative, -4.5);
 check('记录2 从-4.5递推: 可调=-5.5', CALC.computeDay({ prevCumulative: -4.5, estVol: -1, monthlyVol: 8, cash: records[0].cashAfterAll, shares: 0 }).adjVol, -5.5);
+
+console.log('== 份额补录: 买入行补实际份额 → 后续卖出按新份额算 ==');
+const fund3 = { id: 'f3', name: '债基', startCash: 10000, startShares: 0, startCumulative: 0, monthlyVol: 3, cash: 0, shares: 0, lastCumulative: 0 };
+const records3 = [
+  { id: 's1', date: '2026-08-01', fundId: 'f3', estVol: -2.6, actualVol: 3, monthlyVol: 3, // 实际涨3%，消耗2.5 → 累计0.5
+    adjustments: [{ idx: 1, vol: 1, ratio: 25 }, { idx: 2, vol: 1, ratio: 25 }, { idx: 3, vol: 0.5, ratio: 12.5 }],
+    executedVol: 2.5, sharesActual: 800, createdAt: '2026-08-01T09:00:00' }, // 买入后补录实际份额 800
+  { id: 's2', date: '2026-08-02', fundId: 'f3', estVol: 1, actualVol: null, monthlyVol: 3,
+    adjustments: [{ idx: 1, vol: 1, ratio: 25 }, { idx: 2, vol: 0.5, ratio: 12.5 }],
+    executedVol: undefined, createdAt: '2026-08-02T09:00:00' }
+];
+recomputeChain(fund3, records3);
+check('记录1 份额补录生效(800)', records3[0].sharesAfterAll, 800);
+check('记录1 累计(0+3-2.5=0.5)', records3[0].finalCumulative, 0.5);
+check('记录2 可调(0.5+1=1.5)', CALC.computeDay({ prevCumulative: 0.5, estVol: 1, monthlyVol: 3, cash: 5273.44, shares: 800 }).adjVol, 1.5);
+check('记录2 卖1(1%*25%*800=200)', records3[1].adjustments[0].amount, 200);
+check('记录2 卖1 后份额(600)', records3[1].adjustments[0].sharesAfter, 600);
+check('记录2 补调(0.5%*12.5%*600=37.5)', records3[1].adjustments[1].amount, 37.5);
+check('记录2 后份额(562.5)', records3[1].sharesAfterAll, 562.5);
+check('基金3 当前份额(562.5)', fund3.shares, 562.5);
 
 console.log('\n结果: ' + pass + ' 通过, ' + fail + ' 失败');
 if (fail > 0) process.exit(1);

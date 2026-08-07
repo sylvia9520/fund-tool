@@ -77,6 +77,15 @@ const App = (function () {
       r.executedVol = (r.executedVol === undefined || r.executedVol === null || r.executedVol === '') ? calc.consumed : Number(r.executedVol);
       const vol = (r.actualVol === undefined || r.actualVol === null || r.actualVol === '') ? estVol : Number(r.actualVol);
       r.finalCumulative = CALC.finalCumulative(cum, vol, r.executedVol);
+      // 补录的实际份额（买入后确认）：以它覆盖递推份额，作为后续卖出计算基础
+      if (r.sharesActual !== undefined && r.sharesActual !== null && String(r.sharesActual) !== '') {
+        s2 = round2(Number(r.sharesActual));
+        if (r.adjustments && r.adjustments.length) {
+          const lastAdj = r.adjustments[r.adjustments.length - 1];
+          lastAdj.sharesAfter = s2;
+          lastAdj.cashAfter = c2;
+        }
+      }
       r.cashAfterAll = c2;
       r.sharesAfterAll = s2;
       r.calcInfo = calc; // 供展示（leftover 等）
@@ -327,7 +336,8 @@ const App = (function () {
         '<td><input class="cell-monthly" data-rec="' + esc(r.id) + '" type="number" step="0.1" value="' + esc(r.monthlyVol) + '"></td>' +
         '<td>' + (r.x || '') + 'X</td>' +
         '<td>' + dirName + '</td>' +
-        '<td>' + adjHtml + '</td>' +
+        '<td>' + adjHtml +
+        '<div class="adj-row">份额补录：<input class="cell-shares" data-rec="' + esc(r.id) + '" type="number" step="0.01" value="' + esc(r.sharesActual === undefined || r.sharesActual === null ? '' : r.sharesActual) + '" placeholder="自动/' + (r.dir === 'buy' ? '买入后填实际份额' : '卖出自动算') + '" style="width:110px"></div></td>' +
         '<td><input class="cell-exec" data-rec="' + esc(r.id) + '" type="number" step="0.1" value="' + esc(r.executedVol) + '"></td>' +
         '<td><b>' + r.finalCumulative + '%</b></td>' +
         '<td><button class="btn small danger" onclick="App.delRecord(\'' + esc(r.id) + '\')">删</button></td>' +
@@ -366,6 +376,10 @@ const App = (function () {
         updateRecordField(rec, 'actualVol', v, '修改实际波动').then(renderHistory);
       } else if (t.classList.contains('cell-monthly')) {
         updateRecordField(rec, 'monthlyVol', v, '修改月度波动').then(renderHistory);
+      } else if (t.classList.contains('cell-shares')) {
+        const oldVal = rec.sharesActual === undefined || rec.sharesActual === null ? '' : rec.sharesActual;
+        rec.sharesActual = (v === '' || isNaN(v)) ? null : v;
+        updateRecordField(rec, 'sharesActual', rec.sharesActual, '份额补录 ' + (oldVal === '' ? '' : oldVal) + '→' + rec.sharesActual).then(renderHistory);
       } else if (t.classList.contains('cell-exec')) {
         updateRecordField(rec, 'executedVol', v, '修改执行消耗').then(renderHistory);
       } else if (t.classList.contains('cell-amt')) {
