@@ -15,6 +15,21 @@ const App = (function () {
 
   // ---------- 工具 ----------
   function round2(x) { return Math.round(x * 100) / 100; }
+  // 右上角 toast（5 秒自动消失）
+  let toastTimer = null;
+  function showToast(msg) {
+    let t = document.getElementById('toastBox');
+    if (!t) {
+      t = document.createElement('div');
+      t.id = 'toastBox';
+      t.style.cssText = 'position:fixed;top:12px;right:12px;z-index:999;background:#2c6fbb;color:#fff;padding:10px 16px;border-radius:8px;font-size:14px;box-shadow:0 2px 8px rgba(0,0,0,.25);opacity:0;transition:opacity .3s;max-width:80vw;';
+      document.body.appendChild(t);
+    }
+    t.textContent = msg;
+    t.style.opacity = '1';
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { t.style.opacity = '0'; }, 5000);
+  }
   function todayStr() {
     const d = new Date();
     const p = function (n) { return n < 10 ? '0' + n : '' + n; };
@@ -41,6 +56,8 @@ const App = (function () {
 
   // ---------- 联动重算（核心） ----------
   // 对单个基金：从基线开始，逐条记录递推，得到每行派生值与基金当前值
+  // 派生列：在仓钱款=累计买入−累计卖出；在仓比例=在仓钱款/基金池；
+  //        健康度=0.5−(月度波动+预估波动)×10/X
   function recomputeChain(fundId) {
     const fund = getFund(fundId);
     if (!fund) return;
@@ -48,6 +65,7 @@ const App = (function () {
     let cash = Number(fund.startCash) || 0;
     let shares = Number(fund.startShares) || 0;
     let cum = Number(fund.startCumulative) || 0;
+    let sumBuy = 0, sumSell = 0;
     recs.forEach(function (r) {
       const estVol = Number(r.estVol) || 0;
       const monthlyVol = r.monthlyVol === undefined || r.monthlyVol === null || r.monthlyVol === '' ? (Number(fund.monthlyVol) || 0) : Number(r.monthlyVol);
@@ -66,26 +84,30 @@ const App = (function () {
             ? ((a.amount === undefined || a.amount === null || a.amount === '') ? 0 : Number(a.amount))
             : sug.amount;
           a.amount = round2(amt);
-          if (a.dir === 'sell') { s2 = round2(s2 - a.amount); a.sharesAfter = s2; a.cashAfter = c2; }
-          else if (a.dir === 'buy') { c2 = round2(c2 - a.amount); a.cashAfter = c2; a.sharesAfter = s2; }
-          else { a.cashAfter = c2; a.sharesAfter = s2; }
+          if (a.dir === 'sell') { s2 = round2(s2 - a.amount); }
+          else if (a.dir === 'buy') { c2 = round2(c2 - a.amount); }
+          // 调整级份额补录：该调整后用户填的实际份额（买入后确认），覆盖递推值
+          if (a.sharesActual !== undefined && a.sharesActual !== null && String(a.sharesActual) !== '') {
+            s2 = round2(Number(a.sharesActual));
+          }
+          a.sharesAfter = s2;
+          a.cashAfter = c2;
         });
       } else {
-        // 无调整（0次）也记录派生
         r.adjustments = [];
       }
+      // 在仓钱款 = 累计买入 − 累计卖出
+      const buySum = r.adjustments.filter(function (a) { return a.dir === 'buy'; }).reduce(function (s, a) { return s + a.amount; }, 0);
+      const sellSum = r.adjustments.filter(function (a) { return a.dir === 'sell'; }).reduce(function (s, a) { return s + a.amount; }, 0);
+      sumBuy += buySum;
+      sumSell += sellSum;
+      r.inPositionMoney = round2(sumBuy - sumSell);
+      const pool = Number(fund.poolSize) || 0;
+      r.inPositionRatio = pool ? round2((r.inPositionMoney / pool) * 100) : 0; // 百分比
+      r.health = round2(0.5 - (monthlyVol + estVol) * 10 / r.x);
       r.executedVol = (r.executedVol === undefined || r.executedVol === null || r.executedVol === '') ? calc.consumed : Number(r.executedVol);
       const vol = (r.actualVol === undefined || r.actualVol === null || r.actualVol === '') ? estVol : Number(r.actualVol);
       r.finalCumulative = CALC.finalCumulative(cum, vol, r.executedVol, r.dir);
-      // 补录的实际份额（买入后确认）：以它覆盖递推份额，作为后续卖出计算基础
-      if (r.sharesActual !== undefined && r.sharesActual !== null && String(r.sharesActual) !== '') {
-        s2 = round2(Number(r.sharesActual));
-        if (r.adjustments && r.adjustments.length) {
-          const lastAdj = r.adjustments[r.adjustments.length - 1];
-          lastAdj.sharesAfter = s2;
-          lastAdj.cashAfter = c2;
-        }
-      }
       r.cashAfterAll = c2;
       r.sharesAfterAll = s2;
       r.calcInfo = calc; // 供展示（leftover 等）
@@ -109,6 +131,7 @@ const App = (function () {
   }
 
   // 修改记录字段：更新 + 留痕 + 重算 + 保存（统一入口）
+  // 修改后弹右上角提示（5秒）
   function updateRecordField(rec, field, value, desc) {
     const oldVal = rec[field];
     const same = String(oldVal) === String(value);
@@ -119,6 +142,8 @@ const App = (function () {
     }).then(function () {
       recomputeChain(rec.fundId);
       return persistFund(getFund(rec.fundId));
+    }).then(function () {
+      showToast('已自动计算 ✓');
     });
   }
 
@@ -167,6 +192,7 @@ const App = (function () {
       '  <div class="last-op">上次操作：' +
       (last ? ('<b>' + fmtDate(last.date) + '</b> 后 — 剩余资金 <b>' + round2(last.cashAfterAll) + '</b>，剩余份额 <b>' + round2(last.sharesAfterAll) + '</b>，最终累计 <b>' + last.finalCumulative + '%</b>') : '（暂无历史，从基线开始）') +
       '</div>' +
+      '  <div class="row"><label>日期（可补录历史）</label><input id="inDate" type="date" value="' + esc(todayStr()) + '"></div>' +
       '  <div class="row"><label>今日预估波动 %</label><input id="inEst" type="number" step="0.1" placeholder="如 2.5 或 -1.2"></div>' +
       '  <div class="row"><label>月度波动 %</label><input id="inMonthly" type="number" step="0.1" value="' + esc(fund.monthlyVol) + '"></div>' +
       '  <div class="row"><label>调前可用金额</label><span id="lblCash">' + round2(fund.cash) + '</span></div>' +
@@ -214,10 +240,18 @@ const App = (function () {
     document.getElementById('todayResult').innerHTML = html;
   }
 
-  // 确认今日操作 → 建记录 + 重算 + 留痕
+  // 确认今日操作 → 建记录 + 重算 + 留痕（单日单记录）
   function confirmToday(estVol, monthlyVol) {
     const fund = getFund(curFundId);
     if (!fund) return;
+    const dateInput = document.getElementById('inDate');
+    const recDate = dateInput && dateInput.value ? dateInput.value : todayStr();
+    // 单日单记录检查：同基金同日期已有记录则拒绝
+    const dup = records.find(function (r) { return r.fundId === fund.id && r.date === recDate; });
+    if (dup) {
+      alert('该基金在 ' + recDate + ' 已有记录（' + fmtDate(dup.date) + '），请到历史总表直接修改，或删除旧记录后再新增。');
+      return;
+    }
     const inputs = document.querySelectorAll('.amt-in');
     const adjustments = [];
     inputs.forEach(function (inp) {
@@ -244,7 +278,7 @@ const App = (function () {
     });
     const rec = {
       id: DB.genId(),
-      date: todayStr(),
+      date: recDate,
       fundId: fund.id,
       estVol: estVol,
       monthlyVol: monthlyVol === null ? (Number(fund.monthlyVol) || 0) : monthlyVol,
@@ -296,22 +330,25 @@ const App = (function () {
     const cont = document.getElementById('historyBox');
     if (!records.length) {
       cont.innerHTML = '<p style="color:#888">暂无记录。先在「今日操作」里算一笔。</p>';
-      document.getElementById('auditBox').innerHTML = '';
+      renderAudit();
       return;
     }
     recomputeAll();
-    const fundFilter = document.getElementById('histFundFilter');
-    const kw = (fundFilter.value || '').trim().toLowerCase();
-
+    // 下拉筛选：选项只在基金数量变化时重建（避免 change 时重置导致下拉关闭）
+    const sel = document.getElementById('histFundFilter');
+    if (sel.options.length !== funds.length + 1) {
+      sel.innerHTML = '<option value="">全部基金</option>' + funds.map(function (f) {
+        return '<option value="' + esc(f.id) + '">' + esc(f.name) + '</option>';
+      }).join('');
+    }
+    const fid = sel.value;
     const recs = sortRecords(records.filter(function (r) {
-      if (!kw) return true;
-      const f = getFund(r.fundId);
-      return (f && f.name.toLowerCase().indexOf(kw) !== -1);
+      return !fid || r.fundId === fid;
     }));
 
-    let html = '<table class="grid"><thead><tr>' +
+    let html = '<div id="historyScroll"><table class="grid"><thead><tr>' +
       '<th>日期</th><th>基金</th><th>预估%</th><th>实际%</th><th>月度%</th><th>档位</th><th>方向</th>' +
-      '<th>调整明细</th><th>执行消耗%</th><th>最终累计%</th><th>操作</th></tr></thead><tbody>';
+      '<th>调整明细</th><th>执行消耗%</th><th>最终累计%</th><th>基金池</th><th>在仓钱款</th><th>在仓比例</th><th>健康度</th><th>操作</th></tr></thead><tbody>';
     const initShown = {};
     recs.forEach(function (r) {
       const f = getFund(r.fundId);
@@ -320,12 +357,13 @@ const App = (function () {
         initShown[r.fundId] = true;
         html += '<tr class="init-row"><td>初始</td><td>' + esc(f.name) + '</td><td></td><td></td><td></td><td></td><td></td>' +
           '<td>基线：金额 <b>' + round2(f.startCash) + '</b> / 份额 <b>' + round2(f.startShares) + '</b> / 累计 <b>' + f.startCumulative + '%</b></td>' +
-          '<td></td><td></td><td></td></tr>';
+          '<td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>';
       }
       const dirName = r.dir === 'sell' ? '卖' : (r.dir === 'buy' ? '买' : '—');
       const adjHtml = (r.adjustments || []).map(function (a) {
         return '<div class="adj-row"><b>调整' + a.idx + '</b> ' + (a.dir === 'sell' ? '卖' : (a.dir === 'buy' ? '买' : '')) +
           ' ' + a.vol + '%×' + a.ratio + '% = <input class="cell-amt" data-rec="' + esc(r.id) + '" data-idx="' + a.idx + '" type="number" step="0.01" value="' + a.amount + '">' +
+          ' <span class="sh-lbl">份额</span><input class="cell-adj-shares" data-rec="' + esc(r.id) + '" data-idx="' + a.idx + '" type="number" step="0.01" value="' + esc(a.sharesActual === undefined || a.sharesActual === null ? '' : a.sharesActual) + '" placeholder="' + (a.dir === 'buy' ? '待补' : round2(a.sharesAfter)) + '" style="width:70px">' +
           '<span class="after">剩资' + (a.cashAfter === undefined ? '' : a.cashAfter) + ' / 份' + (a.sharesAfter === undefined ? '' : a.sharesAfter) + '</span></div>';
       }).join('') || '<span style="color:#999">无调整</span>';
       html += '<tr>' +
@@ -336,16 +374,21 @@ const App = (function () {
         '<td><input class="cell-monthly" data-rec="' + esc(r.id) + '" type="number" step="0.1" value="' + esc(r.monthlyVol) + '"></td>' +
         '<td>' + (r.x || '') + 'X</td>' +
         '<td>' + dirName + '</td>' +
-        '<td>' + adjHtml +
-        '<div class="adj-row">份额补录：<input class="cell-shares" data-rec="' + esc(r.id) + '" type="number" step="0.01" value="' + esc(r.sharesActual === undefined || r.sharesActual === null ? '' : r.sharesActual) + '" placeholder="自动/' + (r.dir === 'buy' ? '买入后填实际份额' : '卖出自动算') + '" style="width:110px"></div></td>' +
+        '<td>' + adjHtml + '</td>' +
         '<td><input class="cell-exec" data-rec="' + esc(r.id) + '" type="number" step="0.1" value="' + esc(r.executedVol) + '"></td>' +
         '<td><b>' + r.finalCumulative + '%</b></td>' +
+        '<td>' + (f ? (round2(f.poolSize) || '—') : '') + '</td>' +
+        '<td><b>' + r.inPositionMoney + '</b></td>' +
+        '<td>' + r.inPositionRatio + '%</td>' +
+        '<td>' + r.health + '</td>' +
         '<td><button class="btn small danger" onclick="App.delRecord(\'' + esc(r.id) + '\')">删</button></td>' +
         '</tr>';
     });
-    html += '</tbody></table>';
+    html += '</tbody></table></div>';
     cont.innerHTML = html;
-
+    // 默认滚动到底部（显示最新记录），上滑查看更早
+    const sc = document.getElementById('historyScroll');
+    if (sc) sc.scrollTop = sc.scrollHeight;
     // 留痕区
     renderAudit();
   }
@@ -353,12 +396,24 @@ const App = (function () {
   function renderAudit() {
     const box = document.getElementById('auditBox');
     const sorted = audits.slice().sort(function (a, b) { return a.time < b.time ? 1 : -1; }).slice(0, 60);
-    box.innerHTML = '<h3>留痕记录（最近 60 条）</h3>' +
-      (sorted.length ? '<table class="grid small-grid"><tr><th>时间</th><th>基金</th><th>字段</th><th>改前</th><th>改后</th><th>说明</th></tr>' +
+    const bodyHtml = sorted.length
+      ? '<div id="auditBody" class="audit-collapsed"><table class="grid small-grid"><tr><th>时间</th><th>基金</th><th>字段</th><th>改前</th><th>改后</th><th>说明</th></tr>' +
         sorted.map(function (a) {
           const f = getFund(a.fundId);
           return '<tr><td>' + esc(fmtDate(a.time) + ' ' + (a.time || '').slice(11, 16)) + '</td><td>' + esc(f ? f.name : '') + '</td><td>' + esc(a.field) + '</td><td>' + esc(a.oldVal) + '</td><td>' + esc(a.newVal) + '</td><td>' + esc(a.desc) + '</td></tr>';
-        }).join('') + '</table>' : '<p style="color:#888">暂无留痕</p>');
+        }).join('') + '</table></div>'
+      : '<p style="color:#888">暂无留痕</p>';
+    box.innerHTML = '<h3 class="audit-toggle" onclick="App.toggleAudit()">📋 留痕记录（' + audits.length + ' 条）<span id="auditArrow">▶</span></h3>' + bodyHtml;
+    const body = document.getElementById('auditBody');
+    if (body) body.classList.add('audit-collapsed');
+  }
+
+  function toggleAudit() {
+    const body = document.getElementById('auditBody');
+    const arrow = document.getElementById('auditArrow');
+    if (!body) return;
+    const collapsed = body.classList.toggle('audit-collapsed');
+    if (arrow) arrow.textContent = collapsed ? '▶' : '▼';
   }
 
   // 编辑联动：表格输入变化
@@ -380,6 +435,15 @@ const App = (function () {
         const oldVal = rec.sharesActual === undefined || rec.sharesActual === null ? '' : rec.sharesActual;
         rec.sharesActual = (v === '' || isNaN(v)) ? null : v;
         updateRecordField(rec, 'sharesActual', rec.sharesActual, '份额补录 ' + (oldVal === '' ? '' : oldVal) + '→' + rec.sharesActual).then(renderHistory);
+      } else if (t.classList.contains('cell-adj-shares')) {
+        // 调整级份额补录（每个调整后各一个份额框）
+        const idx = parseInt(t.dataset.idx, 10);
+        const adj = rec.adjustments.find(function (a) { return a.idx === idx; });
+        if (adj) {
+          const oldVal = adj.sharesActual === undefined || adj.sharesActual === null ? '' : adj.sharesActual;
+          adj.sharesActual = (v === '' || isNaN(v)) ? null : v;
+          updateRecordField(rec, 'adjustments', rec.adjustments, '调整' + idx + ' 份额 ' + (oldVal === '' ? '' : oldVal) + '→' + (adj.sharesActual === null ? '' : adj.sharesActual)).then(renderHistory);
+        }
       } else if (t.classList.contains('cell-exec')) {
         updateRecordField(rec, 'executedVol', v, '修改执行消耗').then(renderHistory);
       } else if (t.classList.contains('cell-amt')) {
@@ -414,6 +478,7 @@ const App = (function () {
     box.innerHTML = '<div class="card">' +
       '<h3>新增基金</h3>' +
       '<div class="row"><label>名称</label><input id="newName" placeholder="如 沪深300"></div>' +
+      '<div class="row"><label>基金池（计划总规模）</label><input id="newPool" type="number" step="0.01" placeholder="100000"></div>' +
       '<div class="row"><label>基线金额（初始资金池）</label><input id="newCash" type="number" step="0.01" placeholder="10000"></div>' +
       '<div class="row"><label>基线份额</label><input id="newShares" type="number" step="0.01" value="0"></div>' +
       '<div class="row"><label>基线累计波动 %</label><input id="newCum" type="number" step="0.1" value="0"></div>' +
@@ -422,10 +487,11 @@ const App = (function () {
 
     if (funds.length) {
       box.innerHTML += '<h3>基金列表（基线 = 历史递推起点；当前值 = 自动计算）</h3><table class="grid">' +
-        '<tr><th>名称</th><th>基线金额</th><th>基线份额</th><th>基线累计%</th><th>月度%</th><th>当前金额</th><th>当前份额</th><th>当前累计%</th><th>操作</th></tr>' +
+        '<tr><th>名称</th><th>基金池</th><th>基线金额</th><th>基线份额</th><th>基线累计%</th><th>月度%</th><th>当前金额</th><th>当前份额</th><th>当前累计%</th><th>操作</th></tr>' +
         funds.map(function (f) {
           return '<tr>' +
             '<td>' + esc(f.name) + '</td>' +
+            '<td><input class="sf-pool" data-fid="' + esc(f.id) + '" type="number" step="0.01" value="' + esc(f.poolSize) + '"></td>' +
             '<td><input class="sf-startcash" data-fid="' + esc(f.id) + '" type="number" step="0.01" value="' + esc(f.startCash) + '"></td>' +
             '<td><input class="sf-startshares" data-fid="' + esc(f.id) + '" type="number" step="0.01" value="' + esc(f.startShares) + '"></td>' +
             '<td><input class="sf-startcum" data-fid="' + esc(f.id) + '" type="number" step="0.1" value="' + esc(f.startCumulative) + '"></td>' +
@@ -446,7 +512,7 @@ const App = (function () {
       const fund = getFund(fid);
       if (!fund) return;
       const v = t.value === '' ? '' : parseFloat(t.value);
-      const fieldMap = { 'sf-startcash': 'startCash', 'sf-startshares': 'startShares', 'sf-startcum': 'startCumulative', 'sf-monthly': 'monthlyVol' };
+      const fieldMap = { 'sf-startcash': 'startCash', 'sf-startshares': 'startShares', 'sf-startcum': 'startCumulative', 'sf-monthly': 'monthlyVol', 'sf-pool': 'poolSize' };
       const field = fieldMap[t.className.split(' ').find(function (c) { return fieldMap[c]; })];
       if (!field) return;
       const oldVal = fund[field];
@@ -466,6 +532,7 @@ const App = (function () {
     const fund = {
       id: DB.genId(),
       name: name,
+      poolSize: parseFloat(document.getElementById('newPool').value) || 0,
       startCash: parseFloat(document.getElementById('newCash').value) || 0,
       startShares: parseFloat(document.getElementById('newShares').value) || 0,
       startCumulative: parseFloat(document.getElementById('newCum').value) || 0,
@@ -554,7 +621,7 @@ const App = (function () {
         curFundId = e.target.value;
         renderToday();
       });
-      document.getElementById('histFundFilter').addEventListener('input', renderHistory);
+      document.getElementById('histFundFilter').addEventListener('change', renderHistory);
       document.getElementById('fileImport').addEventListener('change', function (e) {
         doImportFile(e.target.files[0]);
         e.target.value = '';

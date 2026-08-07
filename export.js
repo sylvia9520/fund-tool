@@ -53,6 +53,10 @@ const EXPORT = (function () {
         '剩余份额': '',
         '执行消耗%': r.executedVol,
         '最终累计%': r.finalCumulative,
+        '基金池': f.poolSize === undefined ? '' : f.poolSize,
+        '在仓钱款': r.inPositionMoney === undefined ? '' : r.inPositionMoney,
+        '在仓比例%': r.inPositionRatio === undefined ? '' : r.inPositionRatio,
+        '健康度': r.health === undefined ? '' : r.health,
         '备注': r.note || ''
       };
       if (!r.adjustments || r.adjustments.length === 0) {
@@ -91,6 +95,7 @@ const EXPORT = (function () {
     const fundRows = funds.map(function (f) {
       return {
         '名称': f.name,
+        '基金池': f.poolSize === undefined ? '' : f.poolSize,
         '基线金额': f.startCash,
         '基线份额': f.startShares,
         '基线累计波动%': f.startCumulative,

@@ -49,6 +49,11 @@
   .adj-row { margin-bottom: 4px; }
   .adj-row .after { color: #999; font-size: 12px; margin-left: 4px; }
   tr.init-row td { background: #f7f9fc; color: #888; font-size: 12px; }
+  #historyScroll { max-height: 62vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  .audit-collapsed { display: none; }
+  .audit-toggle { cursor: pointer; user-select: none; color: #2c6fbb; }
+  #auditBody { max-height: 50vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  .sh-lbl { color: #999; font-size: 11px; margin-left: 4px; }
   table.small-grid { font-size: 12px; }
   table.small-grid td { max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .foot-actions { position: fixed; bottom: 0; left: 0; right: 0; background: #fff; border-top: 1px solid #e3e6ea; display: flex; gap: 8px; padding: 10px 14px; z-index: 10; }
@@ -78,8 +83,8 @@
 
 <div class="page" id="page-history">
   <div class="card">
-    <div class="row"><label>筛选基金</label><input id="histFundFilter" placeholder="输入基金名筛选（留空 = 全部）"></div>
-    <div class="hint">编辑任意输入框（预估/实际/月度波动、金额、执行消耗）→ 本行及后续剩余资金/份额/累计自动重算，并写入留痕。</div>
+    <div class="row"><label>筛选基金</label><select id="histFundFilter"></select></div>
+    <div class="hint">默认展示最近记录，上滑可查看更早；修改任意数值 → 联动重算 + 留痕 + 右上角提示。</div>
   </div>
   <div class="grid-wrap" id="historyBox"></div>
   <div class="card" id="auditBox"></div>
