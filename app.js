@@ -132,6 +132,26 @@ const App = (function () {
     const p = function (n) { return n < 10 ? '0' + n : '' + n; };
     return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
   }
+  // 日期解析：支持粘贴多种格式 → 统一 YYYY-MM-DD；解析失败返回 null
+  function parseDateStr(s) {
+    s = String(s || '').trim();
+    if (!s) return null;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;                    // 2026-08-07
+    if (/^\d{8}$/.test(s)) return s.slice(0, 4) + '-' + s.slice(4, 6) + '-' + s.slice(6, 8); // 20260807
+    let m = s.match(/^(\d{4})[-\/.年](\d{1,2})[-\/.月](\d{1,2})日?$/); // 2026-8-7 / 2026/8/7 / 2026年8月7日
+    if (m) { const p = function (n) { return n < 10 ? '0' + n : '' + n; }; return m[1] + '-' + p(+m[2]) + '-' + p(+m[3]); }
+    m = s.match(/^(\d{1,2})[-\/.月](\d{1,2})日?$/);                  // 8-7 / 8月7日（默认当年）
+    if (m) { const p = function (n) { return n < 10 ? '0' + n : '' + n; }; return new Date().getFullYear() + '-' + p(+m[1]) + '-' + p(+m[2]); }
+    return null;
+  }
+  function isValidDateStr(s) {
+    const m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!m) return false;
+    const y = +m[1], mo = +m[2], d = +m[3];
+    if (mo < 1 || mo > 12 || d < 1 || d > 31) return false;
+    const dt = new Date(y, mo - 1, d);
+    return dt.getFullYear() === y && dt.getMonth() === mo - 1 && dt.getDate() === d;
+  }
   function fmtDate(s) {
     if (!s) return '';
     const d = new Date(s);
@@ -289,7 +309,7 @@ const App = (function () {
       '  <div class="last-op">上次操作：' +
       (last ? ('<b>' + fmtDate(last.date) + '</b> 后 — 剩余资金 <b>' + round2(last.cashAfterAll) + '</b>，剩余份额 <b>' + round2(last.sharesAfterAll) + '</b>，最终累计 <b>' + last.finalCumulative + '%</b>') : '（暂无历史，从基线开始）') +
       '</div>' +
-      '  <div class="row"><label>日期（可补录历史）</label><input id="inDate" type="date" value="' + esc(todayStr()) + '"></div>' +
+      '  <div class="row"><label>日期（可粘贴）</label><input id="inDate" type="text" value="' + esc(todayStr()) + '" placeholder="2026-08-07（支持粘贴 20260807 / 2026/8/7 等）"></div>' +
       '  <div class="row"><label>今日预估波动 %</label><input id="inEst" type="number" step="0.1" placeholder="如 2.5 或 -1.2"></div>' +
       '  <div class="row"><label>月度波动 %</label><input id="inMonthly" type="number" step="0.1" value="' + esc(fund.monthlyVol) + '"></div>' +
       '  <div class="row"><label>调前可用金额</label><span id="lblCash">' + round2(fund.cash) + '</span></div>' +
@@ -342,7 +362,15 @@ const App = (function () {
     const fund = getFund(curFundId);
     if (!fund) return;
     const dateInput = document.getElementById('inDate');
-    const recDate = dateInput && dateInput.value ? dateInput.value : todayStr();
+    const recDate = dateInput && dateInput.value ? parseDateStr(dateInput.value) : todayStr();
+    if (!recDate) {
+      alert('日期格式无法识别，请用 2026-08-07 或 20260807 等格式');
+      return;
+    }
+    if (!isValidDateStr(recDate)) {
+      alert('日期不合法：' + recDate);
+      return;
+    }
     // 单日单记录检查：同基金同日期已有记录则拒绝
     const dup = records.find(function (r) { return r.fundId === fund.id && r.date === recDate; });
     if (dup) {
@@ -464,7 +492,7 @@ const App = (function () {
           '<span class="after">剩资' + (a.cashAfter === undefined ? '' : a.cashAfter) + ' / 份' + (a.sharesAfter === undefined ? '' : a.sharesAfter) + '</span></div>';
       }).join('') || '<span style="color:#999">无调整</span>';
       html += '<tr>' +
-        '<td><input class="cell-date" data-rec="' + esc(r.id) + '" type="date" value="' + esc(r.date) + '"></td>' +
+        '<td><input class="cell-date" data-rec="' + esc(r.id) + '" type="text" value="' + esc(r.date) + '" placeholder="2026-08-07"></td>' +
         '<td>' + esc(f ? f.name : r.fundId) + '</td>' +
         '<td><input class="cell-est" data-rec="' + esc(r.id) + '" type="number" step="0.1" value="' + esc(r.estVol) + '"></td>' +
         '<td><input class="cell-actual" data-rec="' + esc(r.id) + '" type="number" step="0.1" value="' + (r.actualVol === null || r.actualVol === undefined ? '' : r.actualVol) + '" placeholder="未录"></td>' +
@@ -523,11 +551,13 @@ const App = (function () {
       if (!rec) return;
       const v = t.value === '' ? '' : parseFloat(t.value);
       if (t.classList.contains('cell-date')) {
-        // 日期手动写入（保持单日单记录）
-        const dup = records.find(function (x) { return x.id !== rec.id && x.fundId === rec.fundId && x.date === t.value; });
-        if (dup) { alert('该基金在 ' + t.value + ' 已有记录，不能重复。'); renderHistory(); return; }
-        if (!t.value) { alert('日期不能为空'); renderHistory(); return; }
-        updateRecordField(rec, 'date', t.value, '修改日期 ' + rec.date + '→' + t.value).then(renderHistory);
+        // 日期手动写入（支持粘贴，保持单日单记录）
+        const newDate = parseDateStr(t.value);
+        if (!newDate) { alert('日期格式无法识别，请用 2026-08-07 或 20260807 等格式'); renderHistory(); return; }
+        if (!isValidDateStr(newDate)) { alert('日期不合法：' + newDate); renderHistory(); return; }
+        const dup = records.find(function (x) { return x.id !== rec.id && x.fundId === rec.fundId && x.date === newDate; });
+        if (dup) { alert('该基金在 ' + newDate + ' 已有记录，不能重复。'); renderHistory(); return; }
+        updateRecordField(rec, 'date', newDate, '修改日期 ' + rec.date + '→' + newDate).then(renderHistory);
       } else if (t.classList.contains('cell-est')) {
         updateRecordField(rec, 'estVol', v, '修改预估波动').then(renderHistory);
       } else if (t.classList.contains('cell-actual')) {
