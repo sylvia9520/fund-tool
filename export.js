@@ -1,104 +1,157 @@
-/* ============================================================
- * export.js — Excel 备份/恢复（SheetJS）
- * ============================================================ */
-'use strict';
+/**
+ * export.js — Excel 导出/导入（SheetJS）
+ * 导出多 sheet：每日计算明细（每调整一行）、留痕、基金设置
+ * 用户可把导出的 xlsx 存到 OneDrive；也可导入恢复。
+ */
+"use strict";
 
-async function collectAll() {
-  const funds = await DB.all('funds');
-  const records = await DB.all('records');
-  const audit = await DB.all('audit');
-  // 重算每行调后资金/份额（与历史页一致）
-  const rows = [];
-  const sortedFunds = funds.slice().sort((a, b) => a.id - b.id);
-  for (const f of sortedFunds) {
-    const recs = records.filter(r => r.fundId === f.id).sort((a, b) => a.date === b.date ? a.id - b.id : (a.date < b.date ? -1 : 1));
-    let cash = f.initCash, shares = f.manualShares || 0;
-    for (const r of recs) {
-      const x = xFactor(r.monthlyVol);
-      for (const a of r.adjustments) {
-        if (a.dir === 'buy') cash = cash - a.amount; else shares = shares - a.amount;
-        rows.push({
-          日期: r.date, 基金: f.name, 调整: '调整' + a.idx, 方向: a.dir === 'buy' ? '买入' : '卖出',
-          波动: a.vol + '%', 档位: x + 'X', 比例: (a.vol === 0.5 ? ratioPct(x) / 2 : ratioPct(x)).toFixed(2) + '%',
-          金额份额: a.amount, 调后资金: Math.round((cash + Number.EPSILON) * 100) / 100,
-          调后份额: Math.round((shares + Number.EPSILON) * 100) / 100,
-          实际波动: r.actualVol === null ? '' : r.actualVol + '%',
-          最终累计: r.finalCumulative === null ? '' : r.finalCumulative + '%',
-          备注: r.note || ''
+const XLSX_OBJ = (typeof XLSX !== 'undefined') ? XLSX : null;
+
+const EXPORT = (function () {
+
+  function fmtDate(d) {
+    const x = new Date(d);
+    if (isNaN(x)) return String(d);
+    const p = function (n) { return n < 10 ? '0' + n : '' + n; };
+    return x.getFullYear() + '-' + p(x.getMonth() + 1) + '-' + p(x.getDate());
+  }
+
+  function fmtTime(d) {
+    const x = new Date(d);
+    if (isNaN(x)) return String(d);
+    return fmtDate(d) + ' ' + x.toTimeString().slice(0, 5);
+  }
+
+  /**
+   * 生成历史明细（每调整一行），供表格和 Excel 共用
+   * @param {Array} funds 基金
+   * @param {Array} records 记录
+   * @returns {Array<object>} 明细行
+   */
+  function buildDetailRows(funds, records) {
+    const fundMap = {};
+    funds.forEach(function (f) { fundMap[f.id] = f; });
+    const rows = [];
+    const sorted = records.slice().sort(function (a, b) {
+      return (a.date + a.createdAt) < (b.date + b.createdAt) ? -1 : 1;
+    });
+    sorted.forEach(function (r) {
+      const f = fundMap[r.fundId] || { name: r.fundId };
+      const base = {
+        '日期': fmtDate(r.date),
+        '基金': f.name,
+        '预估波动%': r.estVol,
+        '实际波动%': r.actualVol === undefined || r.actualVol === null || r.actualVol === '' ? '' : r.actualVol,
+        '月度波动%': r.monthlyVol,
+        '档位': r.x + 'X',
+        '方向': r.dir,
+        '调整序号': '',
+        '调波%': '',
+        '比例%': '',
+        '金额/份额': '',
+        '剩余资金': '',
+        '剩余份额': '',
+        '执行消耗%': r.executedVol,
+        '最终累计%': r.finalCumulative,
+        '备注': r.note || ''
+      };
+      if (!r.adjustments || r.adjustments.length === 0) {
+        rows.push(Object.assign({}, base, { '调整序号': '—', '备注': (r.note || '') + (r.actualVol === undefined || r.actualVol === null || r.actualVol === '' ? ' (待补实际波动)' : '') }));
+      } else {
+        r.adjustments.forEach(function (a) {
+          rows.push(Object.assign({}, base, {
+            '调整序号': '调整' + a.idx,
+            '调波%': a.vol,
+            '比例%': a.ratio,
+            '金额/份额': a.amount,
+            '剩余资金': a.cashAfter === undefined ? '' : a.cashAfter,
+            '剩余份额': a.sharesAfter === undefined ? '' : a.sharesAfter
+          }));
         });
       }
-      if (r.buySharesFilled) shares = shares + r.buySharesFilled;
-    }
-  }
-  const auditRows = audit.map(a => ({
-    时间: a.ts, 记录ID: a.recordId || '', 基金ID: a.fundId || '', 字段: a.field,
-    改前值: a.oldVal, 改后值: a.newVal, 动作: a.action
-  }));
-  const fundRows = funds.map(f => ({ 名称: f.name, 初始资金池: f.initCash, 手动份额: f.manualShares || '', 初始累计: f.initCumulative || 0 }));
-  return { rows, auditRows, fundRows };
-}
-
-async function exportExcel() {
-  const { rows, auditRows, fundRows } = await collectAll();
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows.length ? rows : [{ 提示: '暂无数据' }]), '每日计算全表');
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(auditRows.length ? auditRows : [{ 提示: '暂无留痕' }]), '留痕');
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(fundRows.length ? fundRows : [{ 提示: '暂无基金' }]), '基金设置');
-  const fn = '基金工具备份_' + new Date().toISOString().slice(0, 10) + '.xlsx';
-  XLSX.writeFile(wb, fn);
-  return fn;
-}
-
-async function importExcel(file) {
-  const buf = await file.arrayBuffer();
-  const wb = XLSX.read(buf, { type: 'array' });
-  const sFunds = wb.Sheets['基金设置'];
-  const sRows = wb.Sheets['每日计算全表'];
-  if (!sFunds || !sRows) throw new Error('缺少 基金设置/每日计算全表 sheet');
-  const fundRows = XLSX.utils.sheet_to_json(sFunds);
-  const rowData = XLSX.utils.sheet_to_json(sRows);
-  // 清空重建
-  const allFunds = await DB.all('funds');
-  for (const f of allFunds) await DB.del('funds', f.id);
-  const allRecs = await DB.all('records');
-  for (const r of allRecs) await DB.del('records', r.id);
-  const allAudit = await DB.all('audit');
-  for (const a of allAudit) await DB.del('audit', a.id);
-  // 重建基金
-  const idMap = {};
-  for (const fr of fundRows) {
-    const id = await DB.add('funds', {
-      name: String(fr['名称'] || ''), initCash: parseFloat(fr['初始资金池']) || 0,
-      manualShares: parseFloat(fr['手动份额']) || 0, initCumulative: parseFloat(fr['初始累计']) || 0,
-      createdAt: new Date().toISOString()
     });
-    idMap[fr['名称']] = id;
+    return rows;
   }
-  // 重建记录（按行聚合）
-  const byKey = {};
-  for (const rd of rowData) {
-    const key = rd['日期'] + '|' + rd['基金'];
-    if (!byKey[key]) byKey[key] = [];
-    byKey[key].push(rd);
+
+  /** 导出 Excel（下载 .xlsx） */
+  function exportExcel(funds, records, audits) {
+    if (!XLSX_OBJ) { alert('Excel 组件未加载'); return; }
+    const detail = buildDetailRows(funds, records);
+    const auditRows = audits.slice().sort(function (a, b) { return a.time < b.time ? -1 : 1; }).map(function (a) {
+      return {
+        '时间': fmtTime(a.time),
+        '基金': (funds.find(function (f) { return f.id === a.fundId; }) || {}).name || '',
+        '记录': a.recordId || '',
+        '字段': a.field,
+        '改前值': a.oldVal,
+        '改后值': a.newVal,
+        '说明': a.desc
+      };
+    });
+    const fundRows = funds.map(function (f) {
+      return {
+        '名称': f.name,
+        '基线金额': f.startCash,
+        '基线份额': f.startShares,
+        '基线累计波动%': f.startCumulative,
+        '月度波动%': f.monthlyVol,
+        '当前金额': f.cash,
+        '当前份额': f.shares,
+        '当前累计%': f.lastCumulative,
+        'ID': f.id
+      };
+    });
+
+    const wb = XLSX_OBJ.utils.book_new();
+    const ws1 = XLSX_OBJ.utils.json_to_sheet(detail);
+    const ws2 = XLSX_OBJ.utils.json_to_sheet(auditRows);
+    const ws3 = XLSX_OBJ.utils.json_to_sheet(fundRows);
+    XLSX_OBJ.utils.book_append_sheet(wb, ws1, '每日计算明细');
+    XLSX_OBJ.utils.book_append_sheet(wb, ws2, '留痕记录');
+    XLSX_OBJ.utils.book_append_sheet(wb, ws3, '基金设置');
+    const fn = 'fund-tool-' + new Date().toISOString().slice(0, 10) + '.xlsx';
+    XLSX_OBJ.writeFile(wb, fn);
+    return fn;
   }
-  for (const key of Object.keys(byKey)) {
-    const rows = byKey[key].sort((a, b) => (a['调整'] || '').localeCompare(b['调整'] || ''));
-    const first = rows[0];
-    const fundId = idMap[first['基金']];
-    if (!fundId) continue;
-    const adjustments = rows.map((r, i) => ({
-      idx: i + 1,
-      dir: (r['方向'] || '').indexOf('买') >= 0 ? 'buy' : 'sell',
-      vol: parseFloat(r['波动']) || 1,
-      amount: parseFloat(r['金额份额']) || 0
-    }));
-    await DB.add('records', {
-      date: first['日期'], fundId: fundId,
-      estVol: null, monthlyVol: null, actualVol: null, // 导入时未知，可在页面补
-      adjustments: adjustments, consumedVol: adjustments.reduce((s, a) => s + a.vol, 0),
-      finalCumulative: null, buySharesFilled: null, status: 'imported', note: 'Excel导入',
-      createdAt: new Date().toISOString()
+
+  /** 导出备份（JSON，全量，用于无损恢复） */
+  function exportBackup(funds, records, audits) {
+    const data = { version: 1, exportedAt: new Date().toISOString(), funds: funds, records: records, audits: audits };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'fund-tool-backup-' + new Date().toISOString().slice(0, 10) + '.json';
+    a.click();
+    URL.revokeObjectURL(a.href);
+    return a.download;
+  }
+
+  /** 解析 Excel/JSON 备份文件，返回 {funds, records, audits} */
+  function parseBackup(file) {
+    return new Promise(function (resolve, reject) {
+      const reader = new FileReader();
+      reader.onload = function (e) {
+        try {
+          const text = String(e.target.result);
+          if (text.trim().startsWith('{')) {
+            const data = JSON.parse(text);
+            resolve({ funds: data.funds || [], records: data.records || [], audits: data.audits || [] });
+          } else if (XLSX_OBJ) {
+            const wb = XLSX_OBJ.read(e.target.result, { type: 'array' });
+            const sheetNames = wb.SheetNames;
+            const funds = XLSX_OBJ.utils.sheet_to_json(wb.Sheets['基金设置'] || wb.Sheets[sheetNames[0]] || {});
+            const detail = XLSX_OBJ.utils.sheet_to_json(wb.Sheets['每日计算明细'] || {});
+            const audits = XLSX_OBJ.utils.sheet_to_json(wb.Sheets['留痕记录'] || {});
+            resolve({ funds: funds, detail: detail, audits: audits });
+          } else {
+            reject(new Error('无法识别的备份文件'));
+          }
+        } catch (err) { reject(err); }
+      };
+      reader.onerror = function () { reject(new Error('读取文件失败')); };
+      reader.readAsText(file);
     });
   }
-  return { funds: fundRows.length, rows: rowData.length };
-}
+
+  return { buildDetailRows: buildDetailRows, exportExcel: exportExcel, exportBackup: exportBackup, parseBackup: parseBackup, fmtDate: fmtDate };
+})();

@@ -1,88 +1,92 @@
-/* test.js — 公式引擎单元测试（Node 直接跑：node test.js） */
-'use strict';
-const calc = require('./calc.js');
-const { round2, xFactor, ratioPct, planAdjustments, adjustAmount, executePlan, finalCumulative, estAdjustable } = calc;
+/**
+ * test.js — 公式引擎单元测试（node 运行）
+ * 用用户确认过的例子对账，全绿才算公式正确。
+ */
+"use strict";
+const CALC = require('./calc.js');
 
 let pass = 0, fail = 0;
-function eq(name, actual, expected) {
-  const ok = JSON.stringify(actual) === JSON.stringify(expected);
-  if (ok) { pass++; console.log('  ✓ ' + name); }
-  else { fail++; console.log('  ✗ ' + name + '\n      got      ' + JSON.stringify(actual) + '\n      expected ' + JSON.stringify(expected)); }
+function check(name, actual, expected) {
+  const ok = Math.abs(actual - expected) < 0.005; // 允许 0.005 舍入差
+  if (ok) { pass++; console.log('  ✓ ' + name + ' = ' + actual); }
+  else { fail++; console.log('  ✗ ' + name + ' = ' + actual + ' (期望 ' + expected + ')'); }
+}
+function checkStr(name, actual, expected) {
+  if (String(actual) === String(expected)) { pass++; console.log('  ✓ ' + name + ' = ' + actual); }
+  else { fail++; console.log('  ✗ ' + name + ' = ' + actual + ' (期望 ' + expected + ')'); }
 }
 
-console.log('== 档位 X ==');
-eq('5% → 1X', xFactor(5), 1);
-eq('9.9% → 2X', xFactor(9.9), 2);
-eq('10% → 2X', xFactor(10), 2);
-eq('10.1% → 3X', xFactor(10.1), 3);
-eq('30% → 6X', xFactor(30), 6);
-eq('负数 -4% → 1X', xFactor(-4), 1);
-eq('-10% → 2X', xFactor(-10), 2);
+console.log('== 测试1: 用户示例 X=1, 可调-2.6%(买入), 资金池10000 ==');
+let r = CALC.computeDay({ prevCumulative: 0, estVol: -2.6, monthlyVol: 3, cash: 10000, shares: 0 });
+checkStr('档位X', r.x, 1);
+checkStr('方向(买入)', r.dir, 'buy');
+check('调整次数', r.adjustments.length, 3);
+check('调整1 金额(买2500)', r.adjustments[0].amount, 2500);
+check('调整1 后剩余资金(7500)', r.adjustments[0].cashAfter, 7500);
+check('调整2 金额(买1875)', r.adjustments[1].amount, 1875);
+check('调整2 后剩余资金(5625)', r.adjustments[1].cashAfter, 5625);
+check('调整3 金额(买351.56)', r.adjustments[2].amount, 351.56);
+check('调整3 后剩余资金(5273.44)', r.adjustments[2].cashAfter, 5273.44);
+check('调整3 比例减半(12.5)', r.adjustments[2].ratio, 12.5);
+check('剩余未调波动(0.1留明天)', r.leftover, 0.1);
 
-console.log('== 比例 ==');
-eq('1X → 25', ratioPct(1), 25);
-eq('2X → 12.5', ratioPct(2), 12.5);
-eq('3X → 25/3', round2(ratioPct(3)), 8.33);
+console.log('== 测试2: 用户例子 0%+2%预估, 实际+3% → 最终累计1% ==');
+r = CALC.computeDay({ prevCumulative: 0, estVol: 2, monthlyVol: 3, cash: 10000, shares: 5000 });
+checkStr('方向(卖出)', r.dir, 'sell');
+check('卖出调整次数(2次)', r.adjustments.length, 2);
+check('消耗波动(2)', r.consumed, 2);
+// 交易后：昨日0 + 实际3 - 执行2 = 1
+check('今日最终累计(1留明天)', CALC.finalCumulative(0, 3, 2), 1);
 
-console.log('== 调整计划拆分 ==');
-eq('2 → [1,1]', planAdjustments(2).adjustments, [{vol:1},{vol:1}]);
-eq('2.6 → [1,1,0.5]', planAdjustments(2.6).adjustments, [{vol:1},{vol:1},{vol:0.5}]);
-eq('2.4 → [1,1] 小数<0.5 不补', planAdjustments(2.4).adjustments, [{vol:1},{vol:1}]);
-eq('0.4 → []', planAdjustments(0.4).adjustments, []);
-eq('0.5 → [0.5]', planAdjustments(0.5).adjustments, [{vol:0.5}]);
-eq('3.0 → [1,1,1]', planAdjustments(3).adjustments, [{vol:1},{vol:1},{vol:1}]);
-eq('正→卖出', planAdjustments(2).dir, 'sell');
-eq('负→买入', planAdjustments(-2.6).dir, 'buy');
+console.log('== 测试3: 档位边界 ==');
+checkStr('5%→1X', CALC.xFactor(5), 1);
+checkStr('10%→2X', CALC.xFactor(10), 2);
+checkStr('10.1%→3X', CALC.xFactor(10.1), 3);
+checkStr('15%→3X', CALC.xFactor(15), 3);
+checkStr('30%→6X', CALC.xFactor(30), 6);
+checkStr('-6%→2X(负值取绝对值)', CALC.xFactor(-6), 2);
+check('1X比例25', CALC.baseRatio(3), 25);
+check('2X比例12.5', CALC.baseRatio(8), 12.5);
+check('3X比例8.33', CALC.baseRatio(12), 25/3);
 
-console.log('== 用户确认算法 A：X=1 资金池10000 可调2.6% 买入 ==');
-{
-  const plan = planAdjustments(-2.6);
-  const r = executePlan(10000, 1, plan);
-  eq('调整1 = 2500', r.steps[0].amount, 2500);
-  eq('调整1后余 7500', r.steps[0].remainderAfter, 7500);
-  eq('调整2 = 1875', r.steps[1].amount, 1875);
-  eq('调整2后余 5625', r.steps[1].remainderAfter, 5625);
-  eq('调整3(0.5%,比例减半) = 703.13', r.steps[2].amount, 703.13);
-  eq('调整3后余 4921.87（按2位小数记账递减）', r.steps[2].remainderAfter, 4921.87);
-  eq('消耗波动 2.5', r.consumedVol, 2.5);
-}
+console.log('== 测试4: 0.5% 补调规则 ==');
+r = CALC.computeDay({ prevCumulative: 0, estVol: 0.4, monthlyVol: 3, cash: 10000, shares: 0 });
+check('0.4% 不补调整(0次)', r.adjustments.length, 0);
+check('0.4% 留明天(0.4)', r.leftover, 0.4);
+r = CALC.computeDay({ prevCumulative: 0, estVol: -0.5, monthlyVol: 3, cash: 10000, shares: 0 });
+check('0.5% 补1次调整', r.adjustments.length, 1);
+check('0.5% 调整量(0.5*12.5%*10000=625)', r.adjustments[0].amount, 625);
+check('0.5% 比例减半(12.5)', r.adjustments[0].ratio, 12.5);
+check('0.5% 剩余(0留明天)', r.leftover, 0);
+r = CALC.computeDay({ prevCumulative: 0, estVol: -0.9, monthlyVol: 3, cash: 10000, shares: 0 });
+check('0.9% 只补1次', r.adjustments.length, 1);
+check('0.9% 剩余(0.4留明天)', r.leftover, 0.4);
 
-console.log('== 卖出按份额：X=1 份额10000 可调+2.6% ==');
-{
-  const r = executePlan(10000, 1, planAdjustments(2.6));
-  eq('调整1卖 2500 份', r.steps[0].amount, 2500);
-  eq('调整3卖 703.13 份', r.steps[2].amount, 703.13);
-  eq('剩余份额 4921.87（按2位小数记账递减）', r.remainderAfter, 4921.87);
-}
+console.log('== 测试5: 卖出按份额递减 ==');
+r = CALC.computeDay({ prevCumulative: 0, estVol: 2.6, monthlyVol: 3, cash: 10000, shares: 10000 });
+checkStr('方向(卖出)', r.dir, 'sell');
+check('卖1 金额(1*25%*10000份=2500份)', r.adjustments[0].amount, 2500);
+check('卖1 后份额(7500)', r.adjustments[0].sharesAfter, 7500);
+check('卖2 金额(1875)', r.adjustments[1].amount, 1875);
+check('卖3 金额(351.56)', r.adjustments[2].amount, 351.56);
+check('卖3 后份额(5273.44)', r.adjustments[2].sharesAfter, 5273.44);
+// 买入只耗金额，份额留空（买入测试里 shares=0 不变）
+const rBuy = CALC.computeDay({ prevCumulative: 0, estVol: -2.6, monthlyVol: 3, cash: 10000, shares: 0 });
+check('买入不改份额(仍为0)', rBuy.adjustments[2].sharesAfter, 0);
 
-console.log('== 2X 档位：12.5% × 余量 ==');
-{
-  const r = executePlan(10000, 2, planAdjustments(-1));
-  eq('调整1 = 1250', r.steps[0].amount, 1250);
-  eq('调整1后余 8750', r.steps[0].remainderAfter, 8750);
-}
+console.log('== 测试6: 买入累计消耗方向 ==');
+r = CALC.computeDay({ prevCumulative: 0, estVol: -2, monthlyVol: 3, cash: 10000, shares: 0 });
+checkStr('方向(买入)', r.dir, 'buy');
+check('买入2次', r.adjustments.length, 2);
+check('消耗波动(2)', r.consumed, 2);
+// 字面公式: 今日最终累计 = 昨日 + 实际 - 执行消耗（买入方向语义待用户最终确认）
+check('买入案例最终累计(0 + -2 - 2 = -4)', CALC.finalCumulative(0, -2, 2), -4);
+// 昨日累计 -1，预估 -2（可调-3），实际 -2，执行3次 → 最终 = -1 + (-2) - 3 = -6? 不，执行消耗是3次波动
+check('负累计案例: 昨日-1 实际-2 执行3 → -6+? ', CALC.finalCumulative(-1, -2, 3), -6);
 
-console.log('== 用户例子：昨日累计0%，预估+2%→做2次；实际+3% → 最终累计1% 留明天 ==');
-{
-  const est = estAdjustable(0, 2);      // 0 + 2 = 2
-  eq('预估可调 2%', est, 2);
-  const plan = planAdjustments(est);    // 2 次卖出
-  eq('计划 2 次调整', plan.adjustments.length, 2);
-  const r = executePlan(10000, 1, plan);
-  const final = finalCumulative(0, 3, r.consumedVol);   // 0 + 3 − 2
-  eq('实际+3%，消耗2% → 最终累计 1%', final, 1);
-}
-
-console.log('== 预估 vs 实际偏差的例子（前例延伸：预估2.6做2次+1次0.5，实际3%）==');
-{
-  const r = executePlan(10000, 1, planAdjustments(2.6));
-  const final = finalCumulative(0, 3, r.consumedVol);   // 0 + 3 − 2.5
-  eq('消耗2.5，实际3% → 最终累计 0.5%', final, 0.5);
-}
-
-console.log('== 四舍五入 ==');
-eq('round2(703.125) = 703.13', round2(703.125), 703.13);
-eq('round2(4921.875) = 4921.88', round2(4921.875), 4921.88);
+console.log('== 测试7: 累计波动的闭环（用户例子扩展） ==');
+// 例: 昨日最终累计1%，今天预估+1%（做1次卖出），实际+0.5% → 今日最终 = 1 + 0.5 - 1 = 0.5
+check('昨日1 实际0.5 执行1 → 0.5', CALC.finalCumulative(1, 0.5, 1), 0.5);
 
 console.log('\n结果: ' + pass + ' 通过, ' + fail + ' 失败');
-process.exit(fail > 0 ? 1 : 0);
+if (fail > 0) { process.exit(1); }

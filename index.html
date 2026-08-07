@@ -2,93 +2,104 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="theme-color" content="#1f6feb">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>基金买卖计算器</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#2c6fbb">
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif; background: #f5f6f8; color: #222; padding-bottom: 70px; }
-  header { background: linear-gradient(135deg, #1f6feb, #0d4cb5); color: #fff; padding: 14px 16px; font-size: 17px; font-weight: 600; }
-  .nav { position: fixed; bottom: 0; left: 0; right: 0; display: flex; background: #fff; border-top: 1px solid #ddd; z-index: 50; }
-  .nav button { flex: 1; padding: 12px 0 14px; border: 0; background: #fff; font-size: 13px; color: #555; cursor: pointer; }
-  .nav button.active { color: #1f6feb; font-weight: 600; }
-  .page { display: none; padding: 14px; max-width: 860px; margin: 0 auto; }
-  .page.active { display: block; }
-  .card { background: #fff; border-radius: 10px; padding: 14px; margin-bottom: 12px; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
-  label { font-size: 13px; color: #666; display: block; margin: 10px 0 4px; }
-  input, select, button { font-size: 15px; }
-  input[type=number], input[type=text], select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 8px; margin-bottom: 4px; }
-  button { padding: 10px 14px; border: 0; border-radius: 8px; background: #1f6feb; color: #fff; cursor: pointer; }
-  button.sec { background: #e8edf5; color: #1f6feb; }
-  button.danger { background: #d64545; }
-  .ok { background: #e8f7ee; color: #1a7f4a; border-radius: 8px; padding: 10px; font-size: 14px; }
-  .warn { color: #d64545; font-weight: 600; }
-  .hint { font-size: 12px; color: #999; margin-top: 8px; }
-  .box { background: #f0f6ff; border: 1px solid #cfe0ff; border-radius: 8px; padding: 12px; margin-top: 10px; }
-  table.mini, table.grid { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 8px; }
-  table.mini th, table.mini td, table.grid th, table.grid td { border: 1px solid #e2e6ec; padding: 6px 4px; text-align: center; }
-  table.mini th, table.grid th { background: #f0f4fa; font-weight: 600; white-space: nowrap; }
-  table.grid td input { width: 76px; padding: 4px; font-size: 13px; }
-  table.grid { min-width: 900px; }
-  .table-wrap { overflow-x: auto; background: #fff; border-radius: 10px; padding: 8px; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
-  .fund-card { background: #fff; border-radius: 10px; padding: 12px; margin-bottom: 10px; box-shadow: 0 1px 3px rgba(0,0,0,.08); display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-  .fund-card .f-name { grid-column: 1 / -1; font-weight: 600; }
-  .fund-card label { margin: 0; font-size: 12px; }
-  .fund-card button { margin-top: 6px; }
-  .toolbar { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
-  .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; background: #f2f4f7; color: #222; padding-bottom: 70px; }
+  header { background: linear-gradient(135deg, #2c6fbb, #4a90d9); color: #fff; padding: 14px 16px; position: sticky; top: 0; z-index: 10; }
+  header h1 { font-size: 18px; font-weight: 600; }
+  header .sub { font-size: 12px; opacity: .85; margin-top: 2px; }
+  .tabs { display: flex; background: #fff; border-bottom: 1px solid #e3e6ea; position: sticky; top: 62px; z-index: 9; }
+  .tab-btn { flex: 1; padding: 11px 4px; border: none; background: none; font-size: 14px; color: #666; cursor: pointer; border-bottom: 3px solid transparent; }
+  .tab-btn.active { color: #2c6fbb; border-bottom-color: #2c6fbb; font-weight: 600; }
+  .toolbar { display: flex; gap: 8px; padding: 10px 14px; background: #fff; border-bottom: 1px solid #e3e6ea; flex-wrap: wrap; }
+  .toolbar button { flex: 1; min-width: 110px; }
+  .page { padding: 12px 14px; display: none; }
+  .card { background: #fff; border-radius: 10px; padding: 14px; margin-bottom: 12px; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
+  .card h3 { font-size: 15px; margin-bottom: 10px; color: #333; }
+  .last-op { background: #eef4fc; border-radius: 8px; padding: 10px; font-size: 13px; margin-bottom: 12px; line-height: 1.6; }
+  .last-op b { color: #2c6fbb; }
+  .row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
+  .row label { width: 130px; font-size: 13px; color: #555; flex-shrink: 0; }
+  .row input { flex: 1; min-width: 120px; padding: 9px 10px; border: 1px solid #ccd2da; border-radius: 8px; font-size: 15px; }
+  .row input:focus { outline: none; border-color: #2c6fbb; }
+  select { padding: 9px 10px; border: 1px solid #ccd2da; border-radius: 8px; font-size: 15px; background: #fff; width: 100%; }
+  .btn { padding: 10px 16px; border: none; border-radius: 8px; font-size: 15px; cursor: pointer; background: #e8ecf1; color: #333; }
+  .btn.primary { background: #2c6fbb; color: #fff; }
+  .btn.small { padding: 5px 9px; font-size: 12px; border-radius: 6px; }
+  .btn.danger { background: #d9534f; color: #fff; }
+  .btn:active { opacity: .8; }
+  .result-head { font-size: 14px; margin-bottom: 10px; line-height: 1.6; }
+  .result-head b { color: #c0392b; }
+  .no-adj { color: #888; font-size: 14px; padding: 6px 0; }
+  .hint { color: #999; font-size: 12px; margin: 8px 0; }
+  .ok { color: #27ae60; font-size: 15px; line-height: 1.7; }
+  table.mini { width: 100%; border-collapse: collapse; margin: 8px 0; font-size: 13px; }
+  table.mini th, table.mini td { border: 1px solid #e3e6ea; padding: 6px 4px; text-align: center; }
+  table.mini th { background: #f0f4f9; }
+  .amt-in { width: 88px; padding: 6px; border: 1px solid #ccd2da; border-radius: 6px; text-align: right; font-size: 14px; }
+  .grid-wrap { overflow-x: auto; }
+  table.grid { width: 100%; border-collapse: collapse; font-size: 13px; background: #fff; border-radius: 8px; overflow: hidden; }
+  table.grid th { background: #f0f4f9; padding: 8px 6px; border: 1px solid #e3e6ea; white-space: nowrap; }
+  table.grid td { border: 1px solid #e3e6ea; padding: 6px; vertical-align: top; }
+  table.grid input { width: 72px; padding: 5px; border: 1px solid #d5dae0; border-radius: 5px; font-size: 13px; }
+  .adj-row { margin-bottom: 4px; }
+  .adj-row .after { color: #999; font-size: 12px; margin-left: 4px; }
+  table.small-grid { font-size: 12px; }
+  table.small-grid td { max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .foot-actions { position: fixed; bottom: 0; left: 0; right: 0; background: #fff; border-top: 1px solid #e3e6ea; display: flex; gap: 8px; padding: 10px 14px; z-index: 10; }
+  .foot-actions button { flex: 1; font-size: 13px; padding: 9px 6px; }
+  @media (max-width: 640px) { .row label { width: 100%; } table.grid { font-size: 12px; } }
 </style>
 </head>
 <body>
-<header>📈 基金买卖计算器</header>
+<header>
+  <h1>📊 基金买卖计算器</h1>
+  <div class="sub">严格按你的公式计算 · 留档可追溯 · 改动自动联动</div>
+</header>
 
-<div id="today" class="page">
+<div class="tabs">
+  <button class="tab-btn active" data-tab="today" onclick="App.switchTab('today')">今日操作</button>
+  <button class="tab-btn" data-tab="history" onclick="App.switchTab('history')">历史总表</button>
+  <button class="tab-btn" data-tab="settings" onclick="App.switchTab('settings')">基金设置</button>
+</div>
+
+<div class="page" id="page-today">
   <div class="card">
-    <label>选择基金</label>
-    <select id="today-fund"></select>
-    <div id="today-last" class="box" style="background:#f7f7f7;border-color:#eee;font-size:13px;">先选基金</div>
+    <div class="row"><label>选择基金</label><select id="fundSelect"></select></div>
   </div>
+  <div id="todayBox"></div>
+  <div id="todayResult"></div>
+</div>
+
+<div class="page" id="page-history">
   <div class="card">
-    <label>当日预估波动（%）</label>
-    <input id="today-est" type="number" step="0.1" placeholder="如 2.6（正=卖出，负=买入）">
-    <label>月度波动（%）</label>
-    <input id="today-mv" type="number" step="0.1" placeholder="决定档位：5%内=1X，10%内=2X…">
-    <div class="actions"><button onclick="App.computeToday()">🧮 计算</button></div>
-    <div id="today-result"></div>
-    <div class="toolbar" style="margin-top:12px;">
-      <button class="sec" onclick="App.finalizeActual()">📝 补录实际波动（交易后）</button>
-    </div>
+    <div class="row"><label>筛选基金</label><select id="histFundFilter"></select></div>
+    <div class="hint">编辑任意输入框（预估/实际/月度波动、金额、执行消耗）→ 本行及后续剩余资金/份额/累计自动重算，并写入留痕。</div>
   </div>
+  <div class="grid-wrap" id="historyBox"></div>
+  <div class="card" id="auditBox"></div>
 </div>
 
-<div id="history" class="page">
-  <div class="toolbar">
-    <button onclick="App.renderHistory()">🔄 刷新</button>
-    <button onclick="exportExcel().then(fn => alert('已导出：' + fn + '（存到 OneDrive 即可备份）')).catch(e => alert('导出失败：' + e.message))">💾 导出 Excel</button>
-    <label style="display:inline;margin:0;">恢复导入<input type="file" accept=".xlsx" style="width:auto;display:none;" onchange="importExcel(this.files[0]).then(r => alert('导入完成：' + r.funds + ' 个基金，' + r.rows + ' 行记录，请刷新')).catch(e => alert('导入失败：' + e.message))"></label>
-    <button class="sec" onclick="alert('提示：导出/恢复请存到 OneDrive 文件夹；历史表金额列可直接改，改后自动联动更新并留痕。')">❓</button>
-  </div>
-  <div id="history-count" style="font-size:13px;color:#666;margin-bottom:8px;"></div>
-  <div class="table-wrap" id="history-table"></div>
+<div class="page" id="page-settings">
+  <div id="settingsBox"></div>
 </div>
 
-<div id="funds" class="page">
-  <button onclick="App.addFund()">➕ 新增基金</button>
-  <div id="funds-list" style="margin-top:10px;"></div>
-  <div class="hint" style="margin-top:10px;">卖出只影响"手动份额"（按上次余量递减）；买入只减少"初始资金池"。买入补份额/调资金池都在这里改。</div>
+<div class="foot-actions">
+  <button class="btn" onclick="App.doExportExcel()">📥 导出Excel(OneDrive)</button>
+  <button class="btn" onclick="App.doExportBackup()">💾 导出JSON备份</button>
+  <button class="btn" onclick="document.getElementById('fileImport').click()">📂 导入恢复</button>
+  <input type="file" id="fileImport" accept=".json,.xlsx" style="display:none">
 </div>
 
-<div class="nav">
-  <button data-page="today" class="active">今日操作</button>
-  <button data-page="history">历史总表</button>
-  <button data-page="funds">基金设置</button>
-</div>
-
+<script src="xlsx.full.min.js"></script>
 <script src="calc.js"></script>
 <script src="db.js"></script>
 <script src="export.js"></script>
 <script src="app.js"></script>
-<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+<script>App.init();</script>
 </body>
 </html>
