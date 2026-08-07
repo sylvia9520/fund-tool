@@ -35,8 +35,8 @@ r = CALC.computeDay({ prevCumulative: 0, estVol: 2, monthlyVol: 3, cash: 10000, 
 checkStr('方向(卖出)', r.dir, 'sell');
 check('卖出调整次数(2次)', r.adjustments.length, 2);
 check('消耗波动(2)', r.consumed, 2);
-// 交易后：昨日0 + 实际3 - 执行2 = 1
-check('今日最终累计(1留明天)', CALC.finalCumulative(0, 3, 2), 1);
+// 交易后：昨日0 + 实际3 - 执行2 = 1（卖出）
+check('今日最终累计(1留明天)', CALC.finalCumulative(0, 3, 2, 'sell'), 1);
 
 console.log('== 测试3: 档位边界 ==');
 checkStr('5%→1X', CALC.xFactor(5), 1);
@@ -79,14 +79,14 @@ r = CALC.computeDay({ prevCumulative: 0, estVol: -2, monthlyVol: 3, cash: 10000,
 checkStr('方向(买入)', r.dir, 'buy');
 check('买入2次', r.adjustments.length, 2);
 check('消耗波动(2)', r.consumed, 2);
-// 字面公式: 今日最终累计 = 昨日 + 实际 - 执行消耗（买入方向语义待用户最终确认）
-check('买入案例最终累计(0 + -2 - 2 = -4)', CALC.finalCumulative(0, -2, 2), -4);
-// 昨日累计 -1，预估 -2（可调-3），实际 -2，执行3次 → 最终 = -1 + (-2) - 3 = -6? 不，执行消耗是3次波动
-check('负累计案例: 昨日-1 实际-2 执行3 → -6+? ', CALC.finalCumulative(-1, -2, 3), -6);
+// 方案B(用户确认): 买入 → 昨 + 实际 + 执行消耗（向0收敛）
+check('买入案例最终累计(0 + -2 + 2 = 0)', CALC.finalCumulative(0, -2, 2, 'buy'), 0);
+// 昨日累计 -1，实际 -2，执行3 → -1 + (-2) + 3 = 0
+check('负累计案例(买入, 归0)', CALC.finalCumulative(-1, -2, 3, 'buy'), 0);
 
 console.log('== 测试7: 累计波动的闭环（用户例子扩展） ==');
 // 例: 昨日最终累计1%，今天预估+1%（做1次卖出），实际+0.5% → 今日最终 = 1 + 0.5 - 1 = 0.5
-check('昨日1 实际0.5 执行1 → 0.5', CALC.finalCumulative(1, 0.5, 1), 0.5);
+check('昨日1 实际0.5 执行1 → 0.5(卖出)', CALC.finalCumulative(1, 0.5, 1, 'sell'), 0.5);
 
 console.log('\n结果: ' + pass + ' 通过, ' + fail + ' 失败');
 if (fail > 0) { process.exit(1); }

@@ -76,7 +76,7 @@ const App = (function () {
       }
       r.executedVol = (r.executedVol === undefined || r.executedVol === null || r.executedVol === '') ? calc.consumed : Number(r.executedVol);
       const vol = (r.actualVol === undefined || r.actualVol === null || r.actualVol === '') ? estVol : Number(r.actualVol);
-      r.finalCumulative = CALC.finalCumulative(cum, vol, r.executedVol);
+      r.finalCumulative = CALC.finalCumulative(cum, vol, r.executedVol, r.dir);
       // 补录的实际份额（买入后确认）：以它覆盖递推份额，作为后续卖出计算基础
       if (r.sharesActual !== undefined && r.sharesActual !== null && String(r.sharesActual) !== '') {
         s2 = round2(Number(r.sharesActual));

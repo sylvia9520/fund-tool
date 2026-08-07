@@ -131,13 +131,19 @@ const CALC = (function () {
 
   /**
    * 交易后：根据实际执行计算今日最终累计
+   * 卖出：昨 + 实际 − 执行消耗（例：0 + 3 − 2 = 1 留明天）
+   * 买入：昨 + 实际 + 执行消耗（向 0 收敛，例：0 + (−2) + 2 = 0）【用户2026-08-07确认方案B】
    * @param {number} prevCumulative 昨日最终累计
    * @param {number} actualVol 今日实际波动
    * @param {number} executedVol 今日实际执行的调整消耗波动（用户确认）
+   * @param {string} dir 操作方向 'buy' | 'sell' | 'none'
    * @returns {number} 今日最终累计（留到明天）
    */
-  function finalCumulative(prevCumulative, actualVol, executedVol) {
-    return round2((Number(prevCumulative) || 0) + (Number(actualVol) || 0) - (Number(executedVol) || 0));
+  function finalCumulative(prevCumulative, actualVol, executedVol, dir) {
+    const base = (Number(prevCumulative) || 0) + (Number(actualVol) || 0);
+    const exec = Number(executedVol) || 0;
+    if (dir === 'buy') return round2(base + exec);
+    return round2(base - exec); // sell/none：卖出减（none 时 exec=0 无影响）
   }
 
   return {
