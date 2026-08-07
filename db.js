@@ -93,9 +93,9 @@ const DB = (function () {
   }
 
   // 留痕：记录任意字段变更（改前值→改后值）
+  // 注意：不传 id 字段，让 autoIncrement 自动生成（传 id:undefined 在部分浏览器抛 DataError）
   function audit(fundId, recordId, field, oldVal, newVal, desc) {
     return put('audit', {
-      id: undefined,
       time: new Date().toISOString(),
       fundId: fundId || '',
       recordId: recordId || '',

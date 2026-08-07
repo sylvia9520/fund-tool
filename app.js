@@ -457,6 +457,8 @@ const App = (function () {
       funds.push(fund);
       curFundId = fund.id;
       renderSettings();
+    }).catch(function (err) {
+      alert('添加失败：' + err.message);
     });
   }
 
