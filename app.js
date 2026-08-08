@@ -586,8 +586,7 @@ const App = (function () {
     return '<div class="tl-item">' +
       '<div class="tl-side"><input class="cell-date" data-rec="' + esc(r.id) + '" type="text" value="' + esc(r.date) + '" placeholder="2026-08-07"><span class="tl-dot"></span></div>' +
       '<div class="tl-body">' +
-      '  <div class="tl-head"><span class="tl-meta"></span>' +
-      '    <button class="btn small danger" onclick="App.delRecord(\'' + esc(r.id) + '\')">删</button></div>' +
+      '  <button class="btn small danger tl-del-btn" onclick="App.delRecord(\'' + esc(r.id) + '\')">删</button>' +
       '  <div class="tl-grid">' + inputs + '</div>' +
       '  <div class="adj-list">' + adjHtml + '</div>' +
       '</div></div>';
