@@ -566,10 +566,12 @@ const App = (function () {
       return '<span class="tl-cell' + (cls ? ' ' + cls : '') + '"><i>' + label + '</i>' + inner + '</span>';
     };
     const inputs = [
-      gridCell('基金', '<b class="fund-name">' + esc(f ? f.name : r.fundId) + '</b>', 'tl-fund-cell'),
+      gridCell('基金', '<b class="fund-name">' + esc(f ? f.name : r.fundId) + '</b>'),
       gridCell('预估%', '<input class="cell-est" data-rec="' + esc(r.id) + '" type="number" step="0.1" value="' + esc(r.estVol) + '">', 'tl-narrow'),
       gridCell('实际%', '<input class="cell-actual" data-rec="' + esc(r.id) + '" type="number" step="0.1" value="' + (r.actualVol === null || r.actualVol === undefined ? '' : r.actualVol) + '" placeholder="未录">', 'tl-narrow'),
       gridCell('月度%', '<input class="cell-monthly" data-rec="' + esc(r.id) + '" type="number" step="0.1" value="' + esc(r.monthlyVol) + '">', 'tl-narrow'),
+      // 第一行月度%后留空（6 个占位格），第二行从档位开始
+      '<span class="tl-spacer"></span><span class="tl-spacer"></span><span class="tl-spacer"></span><span class="tl-spacer"></span><span class="tl-spacer"></span><span class="tl-spacer"></span>',
       gridCell('档位', '<b>' + (r.x || '') + 'X</b>'),
       gridCell('方向', '<b>' + dirName + '</b>'),
       gridCell('执行消耗%', '<input class="cell-exec" data-rec="' + esc(r.id) + '" type="number" step="0.1" value="' + esc(r.executedVol) + '">'),
