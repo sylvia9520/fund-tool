@@ -251,11 +251,12 @@ const App = (function () {
           ? ((a.amount === undefined || a.amount === null || a.amount === '') ? 0 : Number(a.amount))
           : sug.amount;
         a.amount = round2(amt);
-        if (a.dir === 'sell') { s2 = round2(s2 - a.amount); }
+        // 份额递推：调整后份额 = 调整前份额 + 本调整买入份额 − 本调整卖出份额
+        // 卖出份额 = amount（卖出乘份额）；买入份额 = 用户补录的份额框值（a.sharesActual）
+        if (a.dir === 'sell') { s2 = round2(s2 - a.amount); c2 = c2; }
         else if (a.dir === 'buy') { c2 = round2(c2 - a.amount); }
-        // 调整级份额补录：该调整后用户填的实际份额（买入后确认），覆盖递推值
         if (a.sharesActual !== undefined && a.sharesActual !== null && String(a.sharesActual) !== '') {
-          s2 = round2(Number(a.sharesActual));
+          if (a.dir === 'buy') s2 = round2(s2 + Number(a.sharesActual)); // 买入份额累加
         }
         a.sharesAfter = s2;
         a.cashAfter = c2;
@@ -550,9 +551,15 @@ const App = (function () {
   function tlItem(r, f) {
     const dirName = r.dir === 'sell' ? '卖' : (r.dir === 'buy' ? '买' : '不动');
     const adjHtml = (r.adjustments || []).map(function (a) {
+      const shVal = (a.dir === 'buy')
+        ? (a.sharesActual === undefined || a.sharesActual === null ? '' : a.sharesActual)
+        : a.sharesAfter;
+      const shAttr = (a.dir === 'buy')
+        ? 'placeholder="买入份额"'
+        : 'placeholder="自动" disabled style="background:#f2f4f7"';
       return '<div class="adj-row"><b>调整' + a.idx + '</b> ' + (a.dir === 'sell' ? '卖' : (a.dir === 'buy' ? '买' : '')) +
         ' ' + a.vol + '%×' + a.ratio + '% = <input class="cell-amt" data-rec="' + esc(r.id) + '" data-idx="' + a.idx + '" type="number" step="0.01" value="' + a.amount + '">' +
-        ' <span class="sh-lbl">份额</span><input class="cell-adj-shares" data-rec="' + esc(r.id) + '" data-idx="' + a.idx + '" type="number" step="0.01" value="' + esc(a.sharesActual === undefined || a.sharesActual === null ? '' : a.sharesActual) + '" placeholder="' + (a.dir === 'buy' ? '待补' : round2(a.sharesAfter)) + '" style="width:64px">' +
+        ' <span class="sh-lbl">份额</span><input class="cell-adj-shares" data-rec="' + esc(r.id) + '" data-idx="' + a.idx + '" type="number" step="0.01" value="' + esc(shVal) + '" ' + shAttr + ' style="width:64px">' +
         '<span class="after">剩资' + (a.cashAfter === undefined ? '' : a.cashAfter) + ' / 份' + (a.sharesAfter === undefined ? '' : a.sharesAfter) + '</span></div>';
     }).join('') || '<span style="color:#999">无调整</span>';
     const gridCell = function (label, inner, cls) {
@@ -567,12 +574,12 @@ const App = (function () {
       gridCell('方向', '<b>' + dirName + '</b>'),
       gridCell('执行消耗%', '<input class="cell-exec" data-rec="' + esc(r.id) + '" type="number" step="0.1" value="' + esc(r.executedVol) + '">'),
       gridCell('最终累计%', '<b>' + r.finalCumulative + '</b>'),
+      gridCell('剩余资金', '<b>' + r.cashAfterAll + '</b>'),
+      gridCell('在仓份额', '<b>' + r.sharesAfterAll + '</b>'),
       gridCell('基金池', '<b>' + (f ? (round2(f.poolSize) || '—') : '') + '</b>'),
       gridCell('在仓钱款', '<b>' + r.inPositionMoney + '</b>'),
       gridCell('在仓比例', '<b>' + r.inPositionRatio + '%</b>'),
-      gridCell('健康度', '<b>' + r.health + '</b>'),
-      gridCell('剩余资金', '<b>' + r.cashAfterAll + '</b>'),
-      gridCell('在仓份额', '<b>' + r.sharesAfterAll + '</b>')
+      gridCell('健康度', '<b>' + r.health + '</b>')
     ].join('');
     return '<div class="tl-item">' +
       '<div class="tl-side"><input class="cell-date" data-rec="' + esc(r.id) + '" type="text" value="' + esc(r.date) + '" placeholder="2026-08-07"><span class="tl-dot"></span></div>' +

@@ -46,11 +46,11 @@ function recomputeChain(fund, records) {
         ? ((a.amount === undefined || a.amount === null || a.amount === '') ? 0 : Number(a.amount))
         : sug.amount;
       a.amount = round2(amt);
+      // 份额递推：调整后份额 = 调整前份额 + 买入份额 − 卖出份额
       if (a.dir === 'sell') { s2 = round2(s2 - a.amount); }
       else if (a.dir === 'buy') { c2 = round2(c2 - a.amount); }
-      // 调整级份额补录：覆盖递推份额，作为后续卖出基础
       if (a.sharesActual !== undefined && a.sharesActual !== null && String(a.sharesActual) !== '') {
-        s2 = round2(Number(a.sharesActual));
+        if (a.dir === 'buy') s2 = round2(s2 + Number(a.sharesActual)); // 买入份额累加
       }
       a.sharesAfter = s2;
       a.cashAfter = c2;
@@ -162,6 +162,26 @@ records4[0].estVol = 2.6; // 反向卖出 → 3次卖出
 recomputeChain(fund4, records4);
 check('预估+2.6 → 3次且方向卖出', records4[0].adjustments.length, 3);
 checkStr('方向=sell', records4[0].adjustments[0].dir, 'sell');
+
+console.log('== 份额累加语义: 调整后份额 = 前份额 + 买入份额 − 卖出份额 ==');
+const fund5 = { id: 'f5', name: '累加测试', poolSize: 10000, startCash: 10000, startShares: 100, startCumulative: 0, monthlyVol: 3, cash: 0, shares: 0, lastCumulative: 0 };
+const records5 = [
+  { id: 'u1', date: '2026-08-01', fundId: 'f5', estVol: -2.6, actualVol: -2, monthlyVol: 3,
+    adjustments: [{ idx: 1, vol: 1, ratio: 25 }, { idx: 2, vol: 1, ratio: 25 }, { idx: 3, vol: 0.5, ratio: 12.5, sharesActual: 800 }],
+    executedVol: 2.5, createdAt: '2026-08-01T09:00:00' }, // 调整3补录买入份额800
+  { id: 'u2', date: '2026-08-02', fundId: 'f5', estVol: 1, actualVol: null, monthlyVol: 3,
+    adjustments: [{ idx: 1, vol: 1, ratio: 25 }, { idx: 2, vol: 0.5, ratio: 12.5 }],
+    executedVol: undefined, createdAt: '2026-08-02T09:00:00' }
+];
+recomputeChain(fund5, records5);
+check('基线份额100 → 调整1/2 份额不变(100)', records5[0].adjustments[0].sharesAfter, 100);
+check('调整3 份额 = 前100 + 买入800 = 900', records5[0].adjustments[2].sharesAfter, 900);
+check('记录1 在仓份额(900)', records5[0].sharesAfterAll, 900);
+// 记录2 卖出：可调 = 0.5 + 1 = 1.5 → 卖1 = 1%*25%*900 = 225；补调 = 0.5%*12.5%*675 = 42.19
+check('卖1 份额(1%*25%*900=225)', records5[1].adjustments[0].amount, 225);
+check('卖1 后份额(675)', records5[1].adjustments[0].sharesAfter, 675);
+check('补调(0.5%*12.5%*675=42.19)', records5[1].adjustments[1].amount, 42.19);
+check('记录2 在仓份额(632.81)', records5[1].sharesAfterAll, 632.81);
 
 console.log('\n结果: ' + pass + ' 通过, ' + fail + ' 失败');
 if (fail > 0) process.exit(1);
