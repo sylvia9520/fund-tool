@@ -50,6 +50,24 @@
   .adj-row .after { color: #999; font-size: 12px; margin-left: 4px; }
   tr.init-row td { background: #f7f9fc; color: #888; font-size: 12px; }
   #historyScroll { max-height: 62vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  /* 时间线：左日期标签 + 竖线滑轨，右内容表单 */
+  .timeline { position: relative; padding: 6px 0 10px; }
+  .tl-item { display: flex; position: relative; margin-bottom: 14px; }
+  .tl-item::before { content: ''; position: absolute; left: 74px; top: 0; bottom: -14px; width: 2px; background: #d7e1ec; }
+  .tl-item:last-child::before { bottom: 8px; }
+  .tl-date { width: 74px; flex-shrink: 0; text-align: right; padding: 10px 16px 0 0; font-size: 13px; font-weight: 600; color: #2c6fbb; position: relative; z-index: 1; }
+  .tl-date::after { content: ''; position: absolute; right: -6px; top: 15px; width: 12px; height: 12px; border-radius: 50%; background: #fff; border: 3px solid #2c6fbb; }
+  .tl-date.init-date { color: #999; }
+  .tl-date.init-date::after { border-color: #bbb; }
+  .tl-body { flex: 1; margin-left: 14px; background: #fff; border-radius: 10px; padding: 10px 12px; box-shadow: 0 1px 3px rgba(0,0,0,.06); min-width: 0; }
+  .tl-body.init-body { background: #f7f9fc; color: #888; font-size: 13px; }
+  .tl-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-size: 14px; }
+  .tl-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(104px, 1fr)); gap: 7px 10px; font-size: 13px; }
+  .tl-cell { display: flex; flex-direction: column; gap: 2px; }
+  .tl-cell i { font-style: normal; color: #999; font-size: 11px; }
+  .tl-cell input { width: 100%; padding: 5px; border: 1px solid #d5dae0; border-radius: 5px; font-size: 13px; min-width: 0; }
+  .adj-list { margin-top: 8px; border-top: 1px dashed #e3e6ea; padding-top: 6px; }
+  .adj-list .adj-row { margin-bottom: 5px; }
   .audit-collapsed { display: none; }
   .audit-toggle { cursor: pointer; user-select: none; color: #2c6fbb; }
   #auditBody { max-height: 50vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }

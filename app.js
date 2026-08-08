@@ -473,7 +473,7 @@ const App = (function () {
     });
   }
 
-  // ---------- 历史总表页 ----------
+  // ---------- 历史总表页（时间线布局） ----------
   function renderHistory() {
     const cont = document.getElementById('historyBox');
     if (!records.length) {
@@ -490,55 +490,68 @@ const App = (function () {
       }).join('');
     }
     const fid = sel.value;
+    // 同一基金按时间自动排序（插入历史条自动归位）
     const recs = sortRecords(records.filter(function (r) {
       return !fid || r.fundId === fid;
     }));
 
-    let html = '<div id="historyScroll"><table class="grid"><thead><tr>' +
-      '<th>日期</th><th>基金</th><th>预估%</th><th>实际%</th><th>月度%</th><th>档位</th><th>方向</th>' +
-      '<th>调整明细</th><th>执行消耗%</th><th>最终累计%</th><th>基金池</th><th>在仓钱款</th><th>在仓比例</th><th>健康度</th><th>操作</th></tr></thead><tbody>';
+    let html = '<div id="historyScroll"><div class="timeline">';
     const initShown = {};
     recs.forEach(function (r) {
       const f = getFund(r.fundId);
-      // 每只基金第一条记录前插入"初始（基线）"行
+      // 每只基金第一条记录前插入"初始（基线）"节点
       if (f && !initShown[r.fundId]) {
         initShown[r.fundId] = true;
-        html += '<tr class="init-row"><td>初始</td><td>' + esc(f.name) + '</td><td></td><td></td><td></td><td></td><td></td>' +
-          '<td>基线：金额 <b>' + round2(f.startCash) + '</b> / 份额 <b>' + round2(f.startShares) + '</b> / 累计 <b>' + f.startCumulative + '%</b></td>' +
-          '<td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>';
+        html += '<div class="tl-item">' +
+          '<div class="tl-date init-date">初始</div>' +
+          '<div class="tl-body init-body">基线：金额 <b>' + round2(f.startCash) + '</b> / 份额 <b>' + round2(f.startShares) + '</b> / 累计 <b>' + f.startCumulative + '%</b></div>' +
+          '</div>';
       }
-      const dirName = r.dir === 'sell' ? '卖' : (r.dir === 'buy' ? '买' : '—');
-      const adjHtml = (r.adjustments || []).map(function (a) {
-        return '<div class="adj-row"><b>调整' + a.idx + '</b> ' + (a.dir === 'sell' ? '卖' : (a.dir === 'buy' ? '买' : '')) +
-          ' ' + a.vol + '%×' + a.ratio + '% = <input class="cell-amt" data-rec="' + esc(r.id) + '" data-idx="' + a.idx + '" type="number" step="0.01" value="' + a.amount + '">' +
-          ' <span class="sh-lbl">份额</span><input class="cell-adj-shares" data-rec="' + esc(r.id) + '" data-idx="' + a.idx + '" type="number" step="0.01" value="' + esc(a.sharesActual === undefined || a.sharesActual === null ? '' : a.sharesActual) + '" placeholder="' + (a.dir === 'buy' ? '待补' : round2(a.sharesAfter)) + '" style="width:70px">' +
-          '<span class="after">剩资' + (a.cashAfter === undefined ? '' : a.cashAfter) + ' / 份' + (a.sharesAfter === undefined ? '' : a.sharesAfter) + '</span></div>';
-      }).join('') || '<span style="color:#999">无调整</span>';
-      html += '<tr>' +
-        '<td><input class="cell-date" data-rec="' + esc(r.id) + '" type="text" value="' + esc(r.date) + '" placeholder="2026-08-07"></td>' +
-        '<td>' + esc(f ? f.name : r.fundId) + '</td>' +
-        '<td><input class="cell-est" data-rec="' + esc(r.id) + '" type="number" step="0.1" value="' + esc(r.estVol) + '"></td>' +
-        '<td><input class="cell-actual" data-rec="' + esc(r.id) + '" type="number" step="0.1" value="' + (r.actualVol === null || r.actualVol === undefined ? '' : r.actualVol) + '" placeholder="未录"></td>' +
-        '<td><input class="cell-monthly" data-rec="' + esc(r.id) + '" type="number" step="0.1" value="' + esc(r.monthlyVol) + '"></td>' +
-        '<td>' + (r.x || '') + 'X</td>' +
-        '<td>' + dirName + '</td>' +
-        '<td>' + adjHtml + '</td>' +
-        '<td><input class="cell-exec" data-rec="' + esc(r.id) + '" type="number" step="0.1" value="' + esc(r.executedVol) + '"></td>' +
-        '<td><b>' + r.finalCumulative + '%</b></td>' +
-        '<td>' + (f ? (round2(f.poolSize) || '—') : '') + '</td>' +
-        '<td><b>' + r.inPositionMoney + '</b></td>' +
-        '<td>' + r.inPositionRatio + '%</td>' +
-        '<td>' + r.health + '</td>' +
-        '<td><button class="btn small danger" onclick="App.delRecord(\'' + esc(r.id) + '\')">删</button></td>' +
-        '</tr>';
+      html += tlItem(r, f);
     });
-    html += '</tbody></table></div>';
+    html += '</div></div>';
     cont.innerHTML = html;
     // 默认滚动到底部（显示最新记录），上滑查看更早
     const sc = document.getElementById('historyScroll');
     if (sc) sc.scrollTop = sc.scrollHeight;
     // 留痕区
     renderAudit();
+  }
+
+  // 单条时间线节点：左侧日期标签 + 右侧内容表单
+  function tlItem(r, f) {
+    const dirName = r.dir === 'sell' ? '卖' : (r.dir === 'buy' ? '买' : '不动');
+    const adjHtml = (r.adjustments || []).map(function (a) {
+      return '<div class="adj-row"><b>调整' + a.idx + '</b> ' + (a.dir === 'sell' ? '卖' : (a.dir === 'buy' ? '买' : '')) +
+        ' ' + a.vol + '%×' + a.ratio + '% = <input class="cell-amt" data-rec="' + esc(r.id) + '" data-idx="' + a.idx + '" type="number" step="0.01" value="' + a.amount + '">' +
+        ' <span class="sh-lbl">份额</span><input class="cell-adj-shares" data-rec="' + esc(r.id) + '" data-idx="' + a.idx + '" type="number" step="0.01" value="' + esc(a.sharesActual === undefined || a.sharesActual === null ? '' : a.sharesActual) + '" placeholder="' + (a.dir === 'buy' ? '待补' : round2(a.sharesAfter)) + '" style="width:64px">' +
+        '<span class="after">剩资' + (a.cashAfter === undefined ? '' : a.cashAfter) + ' / 份' + (a.sharesAfter === undefined ? '' : a.sharesAfter) + '</span></div>';
+    }).join('') || '<span style="color:#999">无调整</span>';
+    const gridCell = function (label, inner) {
+      return '<span class="tl-cell"><i>' + label + '</i>' + inner + '</span>';
+    };
+    const inputs = [
+      gridCell('日期', '<input class="cell-date" data-rec="' + esc(r.id) + '" type="text" value="' + esc(r.date) + '" placeholder="2026-08-07" style="width:86px">'),
+      gridCell('预估%', '<input class="cell-est" data-rec="' + esc(r.id) + '" type="number" step="0.1" value="' + esc(r.estVol) + '">'),
+      gridCell('实际%', '<input class="cell-actual" data-rec="' + esc(r.id) + '" type="number" step="0.1" value="' + (r.actualVol === null || r.actualVol === undefined ? '' : r.actualVol) + '" placeholder="未录">'),
+      gridCell('月度%', '<input class="cell-monthly" data-rec="' + esc(r.id) + '" type="number" step="0.1" value="' + esc(r.monthlyVol) + '">'),
+      gridCell('档位', '<b>' + (r.x || '') + 'X</b>'),
+      gridCell('方向', '<b>' + dirName + '</b>'),
+      gridCell('执行消耗%', '<input class="cell-exec" data-rec="' + esc(r.id) + '" type="number" step="0.1" value="' + esc(r.executedVol) + '">'),
+      gridCell('最终累计%', '<b>' + r.finalCumulative + '</b>'),
+      gridCell('基金池', '<b>' + (f ? (round2(f.poolSize) || '—') : '') + '</b>'),
+      gridCell('在仓钱款', '<b>' + r.inPositionMoney + '</b>'),
+      gridCell('在仓比例', '<b>' + r.inPositionRatio + '%</b>'),
+      gridCell('健康度', '<b>' + r.health + '</b>')
+    ].join('');
+    return '<div class="tl-item">' +
+      '<div class="tl-date">' + fmtDate(r.date) + '</div>' +
+      '<div class="tl-body">' +
+      '  <div class="tl-head"><b>' + esc(f ? f.name : r.fundId) + '</b>' +
+      '    <button class="btn small danger" onclick="App.delRecord(\'' + esc(r.id) + '\')">删</button></div>' +
+      '  <div class="tl-grid">' + inputs + '</div>' +
+      '  <div class="adj-list">' + adjHtml + '</div>' +
+      '</div></div>';
   }
 
   function renderAudit() {
