@@ -570,18 +570,20 @@ const App = (function () {
       gridCell('预估%', '<input class="cell-est" data-rec="' + esc(r.id) + '" type="number" step="0.1" value="' + esc(r.estVol) + '">', 'tl-narrow'),
       gridCell('实际%', '<input class="cell-actual" data-rec="' + esc(r.id) + '" type="number" step="0.1" value="' + (r.actualVol === null || r.actualVol === undefined ? '' : r.actualVol) + '" placeholder="未录">', 'tl-narrow'),
       gridCell('月度%', '<input class="cell-monthly" data-rec="' + esc(r.id) + '" type="number" step="0.1" value="' + esc(r.monthlyVol) + '">', 'tl-narrow'),
-      // 第一行月度%后留空（6 个占位格），第二行从档位开始
-      '<span class="tl-spacer"></span><span class="tl-spacer"></span><span class="tl-spacer"></span><span class="tl-spacer"></span><span class="tl-spacer"></span><span class="tl-spacer"></span>',
+      gridCell('基金池', '<b>' + (f ? (round2(f.poolSize) || '—') : '') + '</b>'),
+      gridCell('在仓比例', '<b>' + r.inPositionRatio + '%</b>'),
+      gridCell('健康度', '<b>' + r.health + '</b>'),
+      // 第一行第 8-10 列留空
+      '<span class="tl-spacer"></span><span class="tl-spacer"></span><span class="tl-spacer"></span>',
       gridCell('档位', '<b>' + (r.x || '') + 'X</b>'),
       gridCell('方向', '<b>' + dirName + '</b>'),
       gridCell('执行消耗%', '<input class="cell-exec" data-rec="' + esc(r.id) + '" type="number" step="0.1" value="' + esc(r.executedVol) + '">'),
       gridCell('最终累计%', '<b>' + r.finalCumulative + '</b>'),
       gridCell('剩余资金', '<b>' + r.cashAfterAll + '</b>'),
       gridCell('在仓份额', '<b>' + r.sharesAfterAll + '</b>'),
-      gridCell('基金池', '<b>' + (f ? (round2(f.poolSize) || '—') : '') + '</b>'),
       gridCell('在仓钱款', '<b>' + r.inPositionMoney + '</b>'),
-      gridCell('在仓比例', '<b>' + r.inPositionRatio + '%</b>'),
-      gridCell('健康度', '<b>' + r.health + '</b>')
+      // 第二行第 8-10 列留空
+      '<span class="tl-spacer"></span><span class="tl-spacer"></span><span class="tl-spacer"></span>'
     ].join('');
     return '<div class="tl-item">' +
       '<div class="tl-side"><input class="cell-date" data-rec="' + esc(r.id) + '" type="text" value="' + esc(r.date) + '" placeholder="2026-08-07"><span class="tl-dot"></span></div>' +
