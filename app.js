@@ -42,32 +42,39 @@ const App = (function () {
     return DB.put('meta', { id: 'odDir', handle: handle, savedAt: new Date().toISOString() });
   }
   // 一键上传 OneDrive：首次选目录（记住），之后自动写文件
+  // 同时生成 Excel（对账）+ JSON（手机端完整恢复）两份
   function saveToOneDrive() {
     recomputeAll();
-    const fn = genBackupName();
+    const fnX = genBackupName(); // xlsx 名
+    const fnJ = '理财基金v3版JSON' + fnX.replace(/^理财基金v3版/, '').replace(/\.xlsx$/, '.json'); // 对应 json 名
     const wb = buildWorkbook();
-    const data = XLSX_OBJ.write(wb, { bookType: 'xlsx', type: 'array' });
-    const blob = new Blob([data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const dataX = XLSX_OBJ.write(wb, { bookType: 'xlsx', type: 'array' });
+    const blobX = new Blob([dataX], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const backup = { version: 1, exportedAt: new Date().toISOString(), funds: funds, records: records, audits: audits };
+    const blobJ = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
     const pickDir = function () {
       return window.showDirectoryPicker().then(function (h) {
         odDirHandle = h;
         return saveDirHandle(h);
       });
     };
-    const writeToHandle = function (h) {
-      return h.getFileHandle(fn, { create: true }).then(function (fh) {
+    const writeToHandle = function (h, name, blob) {
+      return h.getFileHandle(name, { create: true }).then(function (fh) {
         return fh.createWritable().then(function (w) {
           return w.write(blob).then(function () { return w.close(); });
         });
       }).then(function () { return 'written'; });
     };
+    const writeBoth = function (h) {
+      return writeToHandle(h, fnX, blobX).then(function () { return writeToHandle(h, fnJ, blobJ); });
+    };
     const tryHandle = function () {
       if (!odDirHandle) return Promise.resolve(null);
       return odDirHandle.queryPermission ? odDirHandle.queryPermission({ mode: 'readwrite' }).then(function (st) {
-        if (st === 'granted') return writeToHandle(odDirHandle).then(function () { return true; });
+        if (st === 'granted') return writeBoth(odDirHandle).then(function () { return true; });
         if (odDirHandle.requestPermission) {
           return odDirHandle.requestPermission({ mode: 'readwrite' }).then(function (st2) {
-            if (st2 === 'granted') return writeToHandle(odDirHandle).then(function () { return true; });
+            if (st2 === 'granted') return writeBoth(odDirHandle).then(function () { return true; });
             return null;
           });
         }
@@ -77,16 +84,16 @@ const App = (function () {
     // 浏览器支持目录选择器 → 自动写；否则降级为下载
     if (window.showDirectoryPicker) {
       tryHandle().then(function (ok) {
-        if (ok) { showToast('已上传 OneDrive：' + fn + ' ✓'); return; }
-        return pickDir().then(function () { return writeToHandle(odDirHandle); }).then(function () {
-          showToast('已上传 OneDrive：' + fn + ' ✓');
-        }).catch(function (e) {
-          // 用户取消或失败 → 降级下载
-          fallbackDownload(fn, blob);
+        if (ok) { showToast('已上传 OneDrive：' + fnX + ' + ' + fnJ + ' ✓'); return; }
+        return pickDir().then(function () { return writeBoth(odDirHandle); }).then(function () {
+          showToast('已上传 OneDrive：' + fnX + ' + ' + fnJ + ' ✓');
+        }).catch(function () {
+          fallbackDownload(fnX, blobX);
         });
-      }).catch(function () { fallbackDownload(fn, blob); });
+      }).catch(function () { fallbackDownload(fnX, blobX); });
     } else {
-      fallbackDownload(fn, blob);
+      fallbackDownload(fnX, blobX);
+      fallbackDownload(fnJ, blobJ);
     }
   }
   function fallbackDownload(fn, blob) {
