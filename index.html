@@ -125,6 +125,7 @@
     <div class="hist-actions">
       <button class="btn small" onclick="App.doExportExcel()">📥 导出Excel</button>
       <button class="btn small" onclick="App.doExportBackup()">💾 JSON备份</button>
+      <button class="btn small" onclick="App.copyBackupText()">📤 复制JSON</button>
       <button class="btn small" onclick="document.getElementById('fileImport').click()">📂 导入恢复</button>
       <button class="btn small" onclick="App.showPasteImport()">📋 粘贴导入</button>
       <input type="file" id="fileImport" accept=".json,.xlsx,.txt,.bak" style="display:none">
@@ -147,11 +148,11 @@
   <div id="settingsBox"></div>
 </div>
 
-<script src="xlsx.full.min.js?v=20260808f"></script>
-<script src="calc.js?v=20260808f"></script>
-<script src="db.js?v=20260808f"></script>
-<script src="export.js?v=20260808f"></script>
-<script src="app.js?v=20260808f"></script>
+<script src="xlsx.full.min.js?v=20260808g"></script>
+<script src="calc.js?v=20260808g"></script>
+<script src="db.js?v=20260808g"></script>
+<script src="export.js?v=20260808g"></script>
+<script src="app.js?v=20260808g"></script>
 <script>App.init();</script>
 </body>
 </html>

@@ -826,6 +826,23 @@ const App = (function () {
     const box = document.getElementById('pasteBox');
     if (box) box.style.display = 'block';
   }
+  // 复制备份文本：生成 JSON 文本 → 自动复制 + 显示（可手动全选），用微信/剪贴板发给手机
+  function copyBackupText() {
+    recomputeAll();
+    const data = { version: 1, exportedAt: new Date().toISOString(), funds: funds, records: records, audits: audits };
+    const txt = JSON.stringify(data);
+    const area = document.getElementById('pasteArea');
+    const box = document.getElementById('pasteBox');
+    if (area) area.value = txt;
+    if (box) box.style.display = 'block';
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(txt).then(function () {
+        showToast('已复制备份内容 ✓ 发给手机后粘贴导入');
+      }).catch(function () {});
+    } else {
+      showToast('已生成备份文本，请全选复制');
+    }
+  }
   function doPasteImport() {
     const area = document.getElementById('pasteArea');
     const txt = area ? area.value.trim() : '';
@@ -880,7 +897,8 @@ const App = (function () {
     delRecord: delRecord, renderSettings: renderSettings, addFund: addFund, delFund: delFund,
     goToday: goToday, doExportExcel: doExportExcel, doExportBackup: doExportBackup,
     saveToOneDrive: saveToOneDrive, toggleAudit: toggleAudit,
-    showPasteImport: showPasteImport, doPasteImport: doPasteImport
+    showPasteImport: showPasteImport, doPasteImport: doPasteImport,
+    copyBackupText: copyBackupText
   };
 })();
 
