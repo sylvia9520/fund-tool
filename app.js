@@ -220,29 +220,46 @@ const App = (function () {
       r.x = calc.x;
       r.dir = calc.dir;
       let c2 = cash, s2 = shares;
-      if (r.adjustments && r.adjustments.length) {
-        r.adjustments.forEach(function (a, i) {
-          const sug = calc.adjustments[i] || { dir: calc.dir, amount: 0, vol: a.vol, ratio: a.ratio };
-          a.dir = sug.dir;
-          a.vol = a.vol !== undefined ? Number(a.vol) : (sug.vol || 1);
-          a.ratio = a.ratio !== undefined ? Number(a.ratio) : (sug.ratio || 25);
-          // manual=true（用户手动改过）→ 用存值；否则跟随公式建议（前链变动时自动更新）
-          const amt = (a.manual === true)
-            ? ((a.amount === undefined || a.amount === null || a.amount === '') ? 0 : Number(a.amount))
-            : sug.amount;
-          a.amount = round2(amt);
-          if (a.dir === 'sell') { s2 = round2(s2 - a.amount); }
-          else if (a.dir === 'buy') { c2 = round2(c2 - a.amount); }
-          // 调整级份额补录：该调整后用户填的实际份额（买入后确认），覆盖递推值
-          if (a.sharesActual !== undefined && a.sharesActual !== null && String(a.sharesActual) !== '') {
-            s2 = round2(Number(a.sharesActual));
-          }
-          a.sharesAfter = s2;
-          a.cashAfter = c2;
-        });
-      } else {
-        r.adjustments = [];
+      // 同步调整序列数量：随预估波动实时增减（该加加该减减）
+      const sugAdj = calc.adjustments || [];
+      if (!Array.isArray(r.adjustments)) r.adjustments = [];
+      const existing = r.adjustments.slice();
+      const countChanged = existing.length !== sugAdj.length;
+      r.adjustments = [];
+      for (let i = 0; i < sugAdj.length; i++) {
+        const old = existing.find(function (a) { return a.idx === i + 1; });
+        if (old) {
+          old.dir = sugAdj[i].dir;
+          old.vol = sugAdj[i].vol;
+          old.ratio = sugAdj[i].ratio;
+          r.adjustments.push(old); // 保留 manual 标记与用户改过的金额
+        } else {
+          r.adjustments.push({ idx: i + 1, vol: sugAdj[i].vol, ratio: sugAdj[i].ratio, dir: sugAdj[i].dir, amount: undefined });
+        }
       }
+      if (countChanged) {
+        r.updatedAt = new Date().toISOString();
+        DB.put('records', r); // 行数变化时持久化（fire-and-forget）
+      }
+      r.adjustments.forEach(function (a, i) {
+        const sug = calc.adjustments[i] || { dir: calc.dir, amount: 0, vol: a.vol, ratio: a.ratio };
+        a.dir = sug.dir;
+        a.vol = a.vol !== undefined ? Number(a.vol) : (sug.vol || 1);
+        a.ratio = a.ratio !== undefined ? Number(a.ratio) : (sug.ratio || 25);
+        // manual=true（用户手动改过）→ 用存值；否则跟随公式建议（前链变动时自动更新）
+        const amt = (a.manual === true)
+          ? ((a.amount === undefined || a.amount === null || a.amount === '') ? 0 : Number(a.amount))
+          : sug.amount;
+        a.amount = round2(amt);
+        if (a.dir === 'sell') { s2 = round2(s2 - a.amount); }
+        else if (a.dir === 'buy') { c2 = round2(c2 - a.amount); }
+        // 调整级份额补录：该调整后用户填的实际份额（买入后确认），覆盖递推值
+        if (a.sharesActual !== undefined && a.sharesActual !== null && String(a.sharesActual) !== '') {
+          s2 = round2(Number(a.sharesActual));
+        }
+        a.sharesAfter = s2;
+        a.cashAfter = c2;
+      });
       // 在仓钱款 = 累计买入 − 累计卖出
       const buySum = r.adjustments.filter(function (a) { return a.dir === 'buy'; }).reduce(function (s, a) { return s + a.amount; }, 0);
       const sellSum = r.adjustments.filter(function (a) { return a.dir === 'sell'; }).reduce(function (s, a) { return s + a.amount; }, 0);
@@ -542,7 +559,7 @@ const App = (function () {
       return '<span class="tl-cell' + (cls ? ' ' + cls : '') + '"><i>' + label + '</i>' + inner + '</span>';
     };
     const inputs = [
-      gridCell('基金', '<b class="fund-name">' + esc(f ? f.name : r.fundId) + '</b>'),
+      gridCell('基金', '<b class="fund-name">' + esc(f ? f.name : r.fundId) + '</b>', 'tl-fund-cell'),
       gridCell('预估%', '<input class="cell-est" data-rec="' + esc(r.id) + '" type="number" step="0.1" value="' + esc(r.estVol) + '">', 'tl-narrow'),
       gridCell('实际%', '<input class="cell-actual" data-rec="' + esc(r.id) + '" type="number" step="0.1" value="' + (r.actualVol === null || r.actualVol === undefined ? '' : r.actualVol) + '" placeholder="未录">', 'tl-narrow'),
       gridCell('月度%', '<input class="cell-monthly" data-rec="' + esc(r.id) + '" type="number" step="0.1" value="' + esc(r.monthlyVol) + '">', 'tl-narrow'),
@@ -553,12 +570,14 @@ const App = (function () {
       gridCell('基金池', '<b>' + (f ? (round2(f.poolSize) || '—') : '') + '</b>'),
       gridCell('在仓钱款', '<b>' + r.inPositionMoney + '</b>'),
       gridCell('在仓比例', '<b>' + r.inPositionRatio + '%</b>'),
-      gridCell('健康度', '<b>' + r.health + '</b>')
+      gridCell('健康度', '<b>' + r.health + '</b>'),
+      gridCell('剩余资金', '<b>' + r.cashAfterAll + '</b>'),
+      gridCell('在仓份额', '<b>' + r.sharesAfterAll + '</b>')
     ].join('');
     return '<div class="tl-item">' +
       '<div class="tl-side"><input class="cell-date" data-rec="' + esc(r.id) + '" type="text" value="' + esc(r.date) + '" placeholder="2026-08-07"><span class="tl-dot"></span></div>' +
       '<div class="tl-body">' +
-      '  <div class="tl-head"><span class="tl-meta">' + dirName + ' · ' + (r.x || '') + 'X</span>' +
+      '  <div class="tl-head"><span class="tl-meta"></span>' +
       '    <button class="btn small danger" onclick="App.delRecord(\'' + esc(r.id) + '\')">删</button></div>' +
       '  <div class="tl-grid">' + inputs + '</div>' +
       '  <div class="adj-list">' + adjHtml + '</div>' +

@@ -57,6 +57,8 @@ const EXPORT = (function () {
         '在仓钱款': r.inPositionMoney === undefined ? '' : r.inPositionMoney,
         '在仓比例%': r.inPositionRatio === undefined ? '' : r.inPositionRatio,
         '健康度': r.health === undefined ? '' : r.health,
+        '剩余资金': r.cashAfterAll === undefined ? '' : r.cashAfterAll,
+        '在仓份额': r.sharesAfterAll === undefined ? '' : r.sharesAfterAll,
         '备注': r.note || ''
       };
       if (!r.adjustments || r.adjustments.length === 0) {

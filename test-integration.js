@@ -13,6 +13,10 @@ function check(name, actual, expected) {
   if (ok) { pass++; console.log('  ✓ ' + name + ' = ' + actual); }
   else { fail++; console.log('  ✗ ' + name + ' = ' + actual + ' (期望 ' + expected + ')'); }
 }
+function checkStr(name, actual, expected) {
+  if (String(actual) === String(expected)) { pass++; console.log('  ✓ ' + name + ' = ' + actual); }
+  else { fail++; console.log('  ✗ ' + name + ' = ' + actual + ' (期望 ' + expected + ')'); }
+}
 
 // 复刻 app.js 的 recomputeChain
 function recomputeChain(fund, records) {
@@ -24,6 +28,16 @@ function recomputeChain(fund, records) {
     const calc = CALC.computeDay({ prevCumulative: cum, estVol: Number(r.estVol), monthlyVol: monthlyVol, cash: cash, shares: shares });
     r.x = calc.x; r.dir = calc.dir;
     let c2 = cash, s2 = shares;
+    // 同步调整序列数量（随预估实时增减）
+    const sugAdj = calc.adjustments || [];
+    if (!Array.isArray(r.adjustments)) r.adjustments = [];
+    const existing = r.adjustments.slice();
+    r.adjustments = [];
+    for (let i = 0; i < sugAdj.length; i++) {
+      const old = existing.find(function (a) { return a.idx === i + 1; });
+      if (old) { old.dir = sugAdj[i].dir; old.vol = sugAdj[i].vol; old.ratio = sugAdj[i].ratio; r.adjustments.push(old); }
+      else { r.adjustments.push({ idx: i + 1, vol: sugAdj[i].vol, ratio: sugAdj[i].ratio, dir: sugAdj[i].dir, amount: undefined }); }
+    }
     (r.adjustments || []).forEach(function (a, i) {
       const sug = calc.adjustments[i] || { dir: calc.dir, amount: 0 };
       a.dir = sug.dir; a.vol = a.vol; a.ratio = a.ratio;
@@ -125,6 +139,29 @@ check('记录2 后份额(562.5)', records3[1].sharesAfterAll, 562.5);
 check('基金3 当前份额(562.5)', fund3.shares, 562.5);
 check('记录2 在仓钱款(4726.56-200-37.5=4489.06)', records3[1].inPositionMoney, 4489.06);
 check('记录2 在仓比例(44.89%)', records3[1].inPositionRatio, 44.89);
+check('记录2 剩余资金(卖出不减现金=5273.44)', records3[1].cashAfterAll, 5273.44);
+check('记录2 在仓份额(=调后份额562.5)', records3[1].sharesAfterAll, 562.5);
+
+console.log('== 调整数量随预估实时增减 ==');
+const fund4 = { id: 'f4', name: '弹性测试', poolSize: 10000, startCash: 10000, startShares: 0, startCumulative: 0, monthlyVol: 3, cash: 0, shares: 0, lastCumulative: 0 };
+const records4 = [
+  { id: 't1', date: '2026-08-01', fundId: 'f4', estVol: -1, actualVol: null, monthlyVol: 3,
+    adjustments: [{ idx: 1, vol: 1, ratio: 25, dir: 'buy', amount: 2500 }],
+    executedVol: 1, createdAt: '2026-08-01T09:00:00' }
+];
+recomputeChain(fund4, records4);
+check('初始预估-1 → 1次调整', records4[0].adjustments.length, 1);
+records4[0].estVol = -2.6; // 调大预估 → 调整数应增到 3
+recomputeChain(fund4, records4);
+check('预估-2.6 → 调整数增至3', records4[0].adjustments.length, 3);
+check('新增调整3 金额(0.5%*12.5%*余量)', records4[0].adjustments[2].amount, 351.56);
+records4[0].estVol = -0.4; // 调小 → 调整数减到 0
+recomputeChain(fund4, records4);
+check('预估-0.4 → 调整数减至0', records4[0].adjustments.length, 0);
+records4[0].estVol = 2.6; // 反向卖出 → 3次卖出
+recomputeChain(fund4, records4);
+check('预估+2.6 → 3次且方向卖出', records4[0].adjustments.length, 3);
+checkStr('方向=sell', records4[0].adjustments[0].dir, 'sell');
 
 console.log('\n结果: ' + pass + ' 通过, ' + fail + ' 失败');
 if (fail > 0) process.exit(1);
