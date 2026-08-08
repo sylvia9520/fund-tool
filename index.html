@@ -50,13 +50,19 @@
   .adj-row { margin-bottom: 4px; }
   .adj-row .after { color: #999; font-size: 12px; margin-left: 4px; }
   tr.init-row td { background: #f7f9fc; color: #888; font-size: 12px; }
-  #historyScroll { max-height: 62vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  #historyScroll { max-height: 62vh; overflow: auto; -webkit-overflow-scrolling: touch; }
   /* 时间线：日期在圆点左侧，圆点压竖线，与内容块左右分布、垂直居中 */
   .timeline { position: relative; padding: 6px 0 10px; }
   .timeline::before { content: ''; position: absolute; left: 128px; top: 10px; bottom: 10px; width: 3px; background: #cfe3d6; border-radius: 2px; }
   .tl-item { display: flex; align-items: stretch; position: relative; margin-bottom: 16px; }
   .tl-side { width: 136px; flex-shrink: 0; display: flex; align-items: center; justify-content: flex-end; gap: 8px; padding-right: 12px; position: relative; }
   .tl-side .cell-date { width: 96px; text-align: right; padding: 5px 6px; border: 1px solid #d5dae0; border-radius: 6px; font-size: 13px; }
+  /* 手机窄屏：左侧日期列压缩，给 10 列内容腾空间 */
+  @media (max-width: 640px) {
+    .timeline::before { left: 88px; }
+    .tl-side { width: 96px; padding-right: 8px; gap: 6px; }
+    .tl-side .cell-date { width: 62px; font-size: 11px; padding: 4px 3px; }
+  }
   .tl-date-label { font-size: 14px; font-weight: 600; color: #2f7d50; }
   .tl-date-label.init-date { color: #999; }
   .tl-dot { width: 15px; height: 15px; flex-shrink: 0; border-radius: 50%; background: #fff; border: 4px solid #4c9a6e; position: absolute; right: -7.5px; z-index: 1; }
@@ -65,7 +71,7 @@
   .tl-body.init-body { background: #f7f9fc; color: #888; font-size: 13px; }
   .tl-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-size: 13px; min-height: 24px; }
   .tl-meta { color: #888; }
-  .tl-grid { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 5px 6px; font-size: 12px; } /* 10列: 第一行基金~月度%后留空, 第二行档位→健康度 */
+  .tl-grid { display: grid; grid-template-columns: repeat(10, minmax(26px, 1fr)); gap: 4px 5px; font-size: 12px; } /* 10列×2行: 第一行基金~月度%后留空, 第二行档位→健康度; 每列最小26px, 窄屏可横向滚动 */
   .tl-cell { display: flex; flex-direction: column; gap: 1px; }
   .tl-cell i { font-style: normal; color: #999; font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .tl-cell input { width: 100%; padding: 4px 4px; border: 1px solid #d5dae0; border-radius: 5px; font-size: 12px; min-width: 0; }
