@@ -112,20 +112,23 @@ const App = (function () {
     XLSX_OBJ.utils.book_append_sheet(wb, XLSX_OBJ.utils.json_to_sheet(fundRows), '基金设置');
     return wb;
   }
-  // 右上角 toast（5 秒自动消失）
+  // 右上角 toast：由下向上顶入，每次重放动画以区分先后（5 秒后淡出）
   let toastTimer = null;
   function showToast(msg) {
     let t = document.getElementById('toastBox');
     if (!t) {
       t = document.createElement('div');
       t.id = 'toastBox';
-      t.style.cssText = 'position:fixed;top:12px;right:12px;z-index:999;background:#4c9a6e;color:#fff;padding:10px 16px;border-radius:8px;font-size:14px;box-shadow:0 2px 8px rgba(0,0,0,.25);opacity:0;transition:opacity .3s;max-width:80vw;';
+      t.style.cssText = 'position:fixed;top:12px;right:12px;z-index:999;background:#4c9a6e;color:#fff;padding:8px 13px;border-radius:8px;font-size:13px;box-shadow:0 2px 8px rgba(0,0,0,.25);max-width:72vw;pointer-events:none;';
       document.body.appendChild(t);
     }
     t.textContent = msg;
-    t.style.opacity = '1';
+    // 重启动画（remove → reflow → add），区分相邻两次提示
+    t.classList.remove('pop');
+    void t.offsetWidth;
+    t.classList.add('pop');
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(function () { t.style.opacity = '0'; }, 5000);
+    toastTimer = setTimeout(function () { t.classList.remove('pop'); }, 5000);
   }
   function todayStr() {
     const d = new Date();
@@ -511,7 +514,7 @@ const App = (function () {
       if (f && !initShown[r.fundId]) {
         initShown[r.fundId] = true;
         html += '<div class="tl-item">' +
-          '<div class="tl-node"><span class="tl-dot init-dot"></span><span class="tl-date init-date">初始</span></div>' +
+          '<div class="tl-side"><span class="tl-date-label init-date">初始</span><span class="tl-dot init-dot"></span></div>' +
           '<div class="tl-body init-body">基线：金额 <b>' + round2(f.startCash) + '</b> / 份额 <b>' + round2(f.startShares) + '</b> / 累计 <b>' + f.startCumulative + '%</b></div>' +
           '</div>';
       }
@@ -539,7 +542,7 @@ const App = (function () {
       return '<span class="tl-cell' + (cls ? ' ' + cls : '') + '"><i>' + label + '</i>' + inner + '</span>';
     };
     const inputs = [
-      gridCell('日期', '<input class="cell-date" data-rec="' + esc(r.id) + '" type="text" value="' + esc(r.date) + '" placeholder="2026-08-07">'),
+      gridCell('基金', '<b class="fund-name">' + esc(f ? f.name : r.fundId) + '</b>'),
       gridCell('预估%', '<input class="cell-est" data-rec="' + esc(r.id) + '" type="number" step="0.1" value="' + esc(r.estVol) + '">', 'tl-narrow'),
       gridCell('实际%', '<input class="cell-actual" data-rec="' + esc(r.id) + '" type="number" step="0.1" value="' + (r.actualVol === null || r.actualVol === undefined ? '' : r.actualVol) + '" placeholder="未录">', 'tl-narrow'),
       gridCell('月度%', '<input class="cell-monthly" data-rec="' + esc(r.id) + '" type="number" step="0.1" value="' + esc(r.monthlyVol) + '">', 'tl-narrow'),
@@ -553,9 +556,9 @@ const App = (function () {
       gridCell('健康度', '<b>' + r.health + '</b>')
     ].join('');
     return '<div class="tl-item">' +
-      '<div class="tl-node"><span class="tl-dot"></span><span class="tl-date">' + fmtDate(r.date) + '</span></div>' +
+      '<div class="tl-side"><input class="cell-date" data-rec="' + esc(r.id) + '" type="text" value="' + esc(r.date) + '" placeholder="2026-08-07"><span class="tl-dot"></span></div>' +
       '<div class="tl-body">' +
-      '  <div class="tl-head"><b class="fund-name">' + esc(f ? f.name : r.fundId) + '</b>' +
+      '  <div class="tl-head"><span class="tl-meta">' + dirName + ' · ' + (r.x || '') + 'X</span>' +
       '    <button class="btn small danger" onclick="App.delRecord(\'' + esc(r.id) + '\')">删</button></div>' +
       '  <div class="tl-grid">' + inputs + '</div>' +
       '  <div class="adj-list">' + adjHtml + '</div>' +
