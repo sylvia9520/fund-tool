@@ -67,6 +67,9 @@
   .tl-cell { display: flex; flex-direction: column; gap: 2px; }
   .tl-cell i { font-style: normal; color: #999; font-size: 11px; }
   .tl-cell input { width: 100%; padding: 5px; border: 1px solid #d5dae0; border-radius: 5px; font-size: 13px; min-width: 0; }
+  .tl-cell.tl-narrow input { width: 66%; } /* 预估/实际/月度 缩至约 2/3 */
+  .cell-date { min-width: 108px; } /* 日期横向完整展示 */
+  .fund-name { display: inline-block; max-width: 4em; word-break: break-all; line-height: 1.35; } /* 基金名 4 汉字宽，自动换行 */
   .adj-list { margin-top: 8px; border-top: 1px dashed #e3e6ea; padding-top: 6px; }
   .adj-list .adj-row { margin-bottom: 5px; }
   .audit-collapsed { display: none; }

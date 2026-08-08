@@ -535,14 +535,14 @@ const App = (function () {
         ' <span class="sh-lbl">份额</span><input class="cell-adj-shares" data-rec="' + esc(r.id) + '" data-idx="' + a.idx + '" type="number" step="0.01" value="' + esc(a.sharesActual === undefined || a.sharesActual === null ? '' : a.sharesActual) + '" placeholder="' + (a.dir === 'buy' ? '待补' : round2(a.sharesAfter)) + '" style="width:64px">' +
         '<span class="after">剩资' + (a.cashAfter === undefined ? '' : a.cashAfter) + ' / 份' + (a.sharesAfter === undefined ? '' : a.sharesAfter) + '</span></div>';
     }).join('') || '<span style="color:#999">无调整</span>';
-    const gridCell = function (label, inner) {
-      return '<span class="tl-cell"><i>' + label + '</i>' + inner + '</span>';
+    const gridCell = function (label, inner, cls) {
+      return '<span class="tl-cell' + (cls ? ' ' + cls : '') + '"><i>' + label + '</i>' + inner + '</span>';
     };
     const inputs = [
-      gridCell('日期', '<input class="cell-date" data-rec="' + esc(r.id) + '" type="text" value="' + esc(r.date) + '" placeholder="2026-08-07" style="width:86px">'),
-      gridCell('预估%', '<input class="cell-est" data-rec="' + esc(r.id) + '" type="number" step="0.1" value="' + esc(r.estVol) + '">'),
-      gridCell('实际%', '<input class="cell-actual" data-rec="' + esc(r.id) + '" type="number" step="0.1" value="' + (r.actualVol === null || r.actualVol === undefined ? '' : r.actualVol) + '" placeholder="未录">'),
-      gridCell('月度%', '<input class="cell-monthly" data-rec="' + esc(r.id) + '" type="number" step="0.1" value="' + esc(r.monthlyVol) + '">'),
+      gridCell('日期', '<input class="cell-date" data-rec="' + esc(r.id) + '" type="text" value="' + esc(r.date) + '" placeholder="2026-08-07">'),
+      gridCell('预估%', '<input class="cell-est" data-rec="' + esc(r.id) + '" type="number" step="0.1" value="' + esc(r.estVol) + '">', 'tl-narrow'),
+      gridCell('实际%', '<input class="cell-actual" data-rec="' + esc(r.id) + '" type="number" step="0.1" value="' + (r.actualVol === null || r.actualVol === undefined ? '' : r.actualVol) + '" placeholder="未录">', 'tl-narrow'),
+      gridCell('月度%', '<input class="cell-monthly" data-rec="' + esc(r.id) + '" type="number" step="0.1" value="' + esc(r.monthlyVol) + '">', 'tl-narrow'),
       gridCell('档位', '<b>' + (r.x || '') + 'X</b>'),
       gridCell('方向', '<b>' + dirName + '</b>'),
       gridCell('执行消耗%', '<input class="cell-exec" data-rec="' + esc(r.id) + '" type="number" step="0.1" value="' + esc(r.executedVol) + '">'),
@@ -555,7 +555,7 @@ const App = (function () {
     return '<div class="tl-item">' +
       '<div class="tl-node"><span class="tl-dot"></span><span class="tl-date">' + fmtDate(r.date) + '</span></div>' +
       '<div class="tl-body">' +
-      '  <div class="tl-head"><b>' + esc(f ? f.name : r.fundId) + '</b>' +
+      '  <div class="tl-head"><b class="fund-name">' + esc(f ? f.name : r.fundId) + '</b>' +
       '    <button class="btn small danger" onclick="App.delRecord(\'' + esc(r.id) + '\')">删</button></div>' +
       '  <div class="tl-grid">' + inputs + '</div>' +
       '  <div class="adj-list">' + adjHtml + '</div>' +
