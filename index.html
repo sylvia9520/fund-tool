@@ -5,30 +5,31 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>基金买卖计算器</title>
 <link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#2c6fbb">
+<meta name="theme-color" content="#4c9a6e">
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; background: #f2f4f7; color: #222; padding-bottom: 70px; }
-  header { background: linear-gradient(135deg, #2c6fbb, #4a90d9); color: #fff; padding: 14px 16px; position: sticky; top: 0; z-index: 10; }
+  header { background: linear-gradient(135deg, #5aa97c, #8cc9a4); color: #fff; padding: 14px 16px; position: sticky; top: 0; z-index: 10; }
+  header { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='90' height='90' viewBox='0 0 90 90'%3E%3Cg fill='%23ffffff' opacity='0.15'%3E%3Ccircle cx='40' cy='35' r='10'/%3E%3Ccircle cx='50' cy='45' r='10'/%3E%3Ccircle cx='30' cy='45' r='10'/%3E%3Ccircle cx='40' cy='55' r='10'/%3E%3Cpath d='M40 55 Q38 63 33 68 Q40 72 47 68 Q42 63 40 55'/%3E%3C/g%3E%3C/svg%3E"), linear-gradient(135deg, #5aa97c, #8cc9a4); background-size: 90px 90px, auto; background-repeat: repeat, no-repeat; }
   header h1 { font-size: 18px; font-weight: 600; }
   header .sub { font-size: 12px; opacity: .85; margin-top: 2px; }
   .tabs { display: flex; background: #fff; border-bottom: 1px solid #e3e6ea; position: sticky; top: 62px; z-index: 9; }
   .tab-btn { flex: 1; padding: 11px 4px; border: none; background: none; font-size: 14px; color: #666; cursor: pointer; border-bottom: 3px solid transparent; }
-  .tab-btn.active { color: #2c6fbb; border-bottom-color: #2c6fbb; font-weight: 600; }
+  .tab-btn.active { color: #4c9a6e; border-bottom-color: #4c9a6e; font-weight: 600; }
   .toolbar { display: flex; gap: 8px; padding: 10px 14px; background: #fff; border-bottom: 1px solid #e3e6ea; flex-wrap: wrap; }
   .toolbar button { flex: 1; min-width: 110px; }
   .page { padding: 12px 14px; display: none; }
   .card { background: #fff; border-radius: 10px; padding: 14px; margin-bottom: 12px; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
   .card h3 { font-size: 15px; margin-bottom: 10px; color: #333; }
   .last-op { background: #eef4fc; border-radius: 8px; padding: 10px; font-size: 13px; margin-bottom: 12px; line-height: 1.6; }
-  .last-op b { color: #2c6fbb; }
+  .last-op b { color: #2f7d50; }
   .row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
   .row label { width: 130px; font-size: 13px; color: #555; flex-shrink: 0; }
   .row input { flex: 1; min-width: 120px; padding: 9px 10px; border: 1px solid #ccd2da; border-radius: 8px; font-size: 15px; }
-  .row input:focus { outline: none; border-color: #2c6fbb; }
+  .row input:focus { outline: none; border-color: #4c9a6e; }
   select { padding: 9px 10px; border: 1px solid #ccd2da; border-radius: 8px; font-size: 15px; background: #fff; width: 100%; }
   .btn { padding: 10px 16px; border: none; border-radius: 8px; font-size: 15px; cursor: pointer; background: #e8ecf1; color: #333; }
-  .btn.primary { background: #2c6fbb; color: #fff; }
+  .btn.primary { background: #4c9a6e; color: #fff; }
   .btn.small { padding: 5px 9px; font-size: 12px; border-radius: 6px; }
   .btn.danger { background: #d9534f; color: #fff; }
   .btn:active { opacity: .8; }
@@ -50,16 +51,16 @@
   .adj-row .after { color: #999; font-size: 12px; margin-left: 4px; }
   tr.init-row td { background: #f7f9fc; color: #888; font-size: 12px; }
   #historyScroll { max-height: 62vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
-  /* 时间线：左日期标签 + 竖线滑轨，右内容表单 */
-  .timeline { position: relative; padding: 6px 0 10px; }
-  .tl-item { display: flex; position: relative; margin-bottom: 14px; }
-  .tl-item::before { content: ''; position: absolute; left: 74px; top: 0; bottom: -14px; width: 2px; background: #d7e1ec; }
-  .tl-item:last-child::before { bottom: 8px; }
-  .tl-date { width: 74px; flex-shrink: 0; text-align: right; padding: 10px 16px 0 0; font-size: 13px; font-weight: 600; color: #2c6fbb; position: relative; z-index: 1; }
-  .tl-date::after { content: ''; position: absolute; right: -6px; top: 15px; width: 12px; height: 12px; border-radius: 50%; background: #fff; border: 3px solid #2c6fbb; }
+  /* 时间线：左侧竖线+圆点（直线带点），日期独立于圆点右侧，内容表单在其下方 */
+  .timeline { position: relative; padding: 6px 0 10px 26px; }
+  .timeline::before { content: ''; position: absolute; left: 11px; top: 10px; bottom: 10px; width: 3px; background: #cfe3d6; border-radius: 2px; }
+  .tl-item { position: relative; margin-bottom: 16px; }
+  .tl-node { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .tl-dot { width: 15px; height: 15px; flex-shrink: 0; border-radius: 50%; background: #fff; border: 4px solid #4c9a6e; position: relative; z-index: 1; }
+  .tl-dot.init-dot { border-color: #bbb; }
+  .tl-date { font-size: 14px; font-weight: 600; color: #2f7d50; background: #f2f4f7; padding: 2px 10px; border-radius: 12px; }
   .tl-date.init-date { color: #999; }
-  .tl-date.init-date::after { border-color: #bbb; }
-  .tl-body { flex: 1; margin-left: 14px; background: #fff; border-radius: 10px; padding: 10px 12px; box-shadow: 0 1px 3px rgba(0,0,0,.06); min-width: 0; }
+  .tl-body { background: #fff; border-radius: 10px; padding: 10px 12px; box-shadow: 0 1px 3px rgba(0,0,0,.06); min-width: 0; }
   .tl-body.init-body { background: #f7f9fc; color: #888; font-size: 13px; }
   .tl-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-size: 14px; }
   .tl-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(104px, 1fr)); gap: 7px 10px; font-size: 13px; }
@@ -69,7 +70,7 @@
   .adj-list { margin-top: 8px; border-top: 1px dashed #e3e6ea; padding-top: 6px; }
   .adj-list .adj-row { margin-bottom: 5px; }
   .audit-collapsed { display: none; }
-  .audit-toggle { cursor: pointer; user-select: none; color: #2c6fbb; }
+  .audit-toggle { cursor: pointer; user-select: none; color: #4c9a6e; }
   #auditBody { max-height: 50vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
   .sh-lbl { color: #999; font-size: 11px; margin-left: 4px; }
   table.small-grid { font-size: 12px; }

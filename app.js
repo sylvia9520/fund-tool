@@ -119,7 +119,7 @@ const App = (function () {
     if (!t) {
       t = document.createElement('div');
       t.id = 'toastBox';
-      t.style.cssText = 'position:fixed;top:12px;right:12px;z-index:999;background:#2c6fbb;color:#fff;padding:10px 16px;border-radius:8px;font-size:14px;box-shadow:0 2px 8px rgba(0,0,0,.25);opacity:0;transition:opacity .3s;max-width:80vw;';
+      t.style.cssText = 'position:fixed;top:12px;right:12px;z-index:999;background:#4c9a6e;color:#fff;padding:10px 16px;border-radius:8px;font-size:14px;box-shadow:0 2px 8px rgba(0,0,0,.25);opacity:0;transition:opacity .3s;max-width:80vw;';
       document.body.appendChild(t);
     }
     t.textContent = msg;
@@ -152,6 +152,10 @@ const App = (function () {
     const dt = new Date(y, mo - 1, d);
     return dt.getFullYear() === y && dt.getMonth() === mo - 1 && dt.getDate() === d;
   }
+  // 录入时间范围：1990-01-01 ~ 3000-01-01（字符串比较，YYYY-MM-DD 可直接比）
+  function inAllowedRange(s) {
+    return String(s) >= '1990-01-01' && String(s) <= '3000-01-01';
+  }
   // 日期框强制整体粘贴：取剪贴板全文一次填入，自动识别格式
   // 清洗：只保留数字与 年月日/.- 分隔符，其余（"日期:"括号空格引号等）全部去掉
   function cleanDateText(raw) {
@@ -164,13 +168,13 @@ const App = (function () {
     const raw = (e.clipboardData || window.clipboardData).getData('text');
     const clean = cleanDateText(raw);
     const d = parseDateStr(clean) || parseDateStr(String(raw).trim());
-    if (d && isValidDateStr(d)) {
+    if (d && isValidDateStr(d) && inAllowedRange(d)) {
       t.value = d;
       showToast('日期已填入：' + d);
       t.dispatchEvent(new Event('change', { bubbles: true })); // 触发联动保存
     } else if (clean) {
       t.value = clean;
-      showToast('⚠ 无法识别为日期，请用 2026-08-07 / 20260807 格式');
+      showToast('⚠ 无法识别为日期（需 1990-01-01 ~ 3000-01-01），请用 2026-08-07 / 20260807 格式');
     } else {
       showToast('⚠ 剪贴板没有内容');
     }
@@ -394,6 +398,10 @@ const App = (function () {
       alert('日期不合法：' + recDate);
       return;
     }
+    if (!inAllowedRange(recDate)) {
+      alert('日期超出允许范围（1990-01-01 ~ 3000-01-01）：' + recDate);
+      return;
+    }
     // 单日单记录检查：同基金同日期已有记录则拒绝
     const dup = records.find(function (r) { return r.fundId === fund.id && r.date === recDate; });
     if (dup) {
@@ -503,7 +511,7 @@ const App = (function () {
       if (f && !initShown[r.fundId]) {
         initShown[r.fundId] = true;
         html += '<div class="tl-item">' +
-          '<div class="tl-date init-date">初始</div>' +
+          '<div class="tl-node"><span class="tl-dot init-dot"></span><span class="tl-date init-date">初始</span></div>' +
           '<div class="tl-body init-body">基线：金额 <b>' + round2(f.startCash) + '</b> / 份额 <b>' + round2(f.startShares) + '</b> / 累计 <b>' + f.startCumulative + '%</b></div>' +
           '</div>';
       }
@@ -545,7 +553,7 @@ const App = (function () {
       gridCell('健康度', '<b>' + r.health + '</b>')
     ].join('');
     return '<div class="tl-item">' +
-      '<div class="tl-date">' + fmtDate(r.date) + '</div>' +
+      '<div class="tl-node"><span class="tl-dot"></span><span class="tl-date">' + fmtDate(r.date) + '</span></div>' +
       '<div class="tl-body">' +
       '  <div class="tl-head"><b>' + esc(f ? f.name : r.fundId) + '</b>' +
       '    <button class="btn small danger" onclick="App.delRecord(\'' + esc(r.id) + '\')">删</button></div>' +
@@ -587,10 +595,11 @@ const App = (function () {
       if (!rec) return;
       const v = t.value === '' ? '' : parseFloat(t.value);
       if (t.classList.contains('cell-date')) {
-        // 日期手动写入（支持粘贴，保持单日单记录）
+        // 日期手动写入（支持粘贴，保持单日单记录 + 范围限制）
         const newDate = parseDateStr(t.value);
         if (!newDate) { alert('日期格式无法识别，请用 2026-08-07 或 20260807 等格式'); renderHistory(); return; }
         if (!isValidDateStr(newDate)) { alert('日期不合法：' + newDate); renderHistory(); return; }
+        if (!inAllowedRange(newDate)) { alert('日期超出允许范围（1990-01-01 ~ 3000-01-01）：' + newDate); renderHistory(); return; }
         const dup = records.find(function (x) { return x.id !== rec.id && x.fundId === rec.fundId && x.date === newDate; });
         if (dup) { alert('该基金在 ' + newDate + ' 已有记录，不能重复。'); renderHistory(); return; }
         updateRecordField(rec, 'date', newDate, '修改日期 ' + rec.date + '→' + newDate).then(renderHistory);
