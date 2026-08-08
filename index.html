@@ -11,7 +11,7 @@
 <meta name="theme-color" content="#4c9a6e">
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; background: #f2f4f7; color: #222; padding-bottom: 70px; }
+  body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; background: #f2f4f7; color: #222; padding-bottom: 24px; }
   header { background: linear-gradient(135deg, #5aa97c, #8cc9a4); color: #fff; padding: 14px 16px; position: sticky; top: 0; z-index: 10; }
   header { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='90' height='90' viewBox='0 0 90 90'%3E%3Cg fill='%23ffffff' opacity='0.15'%3E%3Ccircle cx='40' cy='35' r='10'/%3E%3Ccircle cx='50' cy='45' r='10'/%3E%3Ccircle cx='30' cy='45' r='10'/%3E%3Ccircle cx='40' cy='55' r='10'/%3E%3Cpath d='M40 55 Q38 63 33 68 Q40 72 47 68 Q42 63 40 55'/%3E%3C/g%3E%3C/svg%3E"), linear-gradient(135deg, #5aa97c, #8cc9a4); background-size: 90px 90px, auto; background-repeat: repeat, no-repeat; }
   header h1 { font-size: 18px; font-weight: 600; }
@@ -93,8 +93,10 @@
   @keyframes toastUp { from { transform: translateY(46px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
   table.small-grid { font-size: 12px; }
   table.small-grid td { max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .foot-actions { position: fixed; bottom: 0; left: 0; right: 0; background: #fff; border-top: 1px solid #e3e6ea; display: flex; gap: 8px; padding: 10px 14px; z-index: 10; }
-  .foot-actions button { flex: 1; font-size: 13px; padding: 9px 6px; }
+  /* 历史页卡片：3 个导出按钮右上角竖排 */
+  .hist-card { position: relative; padding-right: 150px; }
+  .hist-actions { position: absolute; top: 10px; right: 10px; display: flex; flex-direction: column; gap: 6px; z-index: 2; }
+  .hist-actions .btn { white-space: nowrap; font-size: 12px; padding: 6px 10px; }
   @media (max-width: 640px) { .row label { width: 100%; } table.grid { font-size: 12px; } }
 </style>
 </head>
@@ -119,7 +121,13 @@
 </div>
 
 <div class="page" id="page-history">
-  <div class="card">
+  <div class="card hist-card">
+    <div class="hist-actions">
+      <button class="btn small" onclick="App.doExportExcel()">📥 导出Excel</button>
+      <button class="btn small" onclick="App.doExportBackup()">💾 JSON备份</button>
+      <button class="btn small" onclick="document.getElementById('fileImport').click()">📂 导入恢复</button>
+      <input type="file" id="fileImport" accept=".json,.xlsx" style="display:none">
+    </div>
     <div class="row"><label>筛选基金</label><select id="histFundFilter"></select></div>
     <div style="display:flex;justify-content:flex-end;margin-top:8px;">
       <button class="btn primary" onclick="App.saveToOneDrive()">☁️ 一键上传 OneDrive</button>
@@ -134,18 +142,11 @@
   <div id="settingsBox"></div>
 </div>
 
-<div class="foot-actions">
-  <button class="btn" onclick="App.doExportExcel()">📥 导出Excel(OneDrive)</button>
-  <button class="btn" onclick="App.doExportBackup()">💾 导出JSON备份</button>
-  <button class="btn" onclick="document.getElementById('fileImport').click()">📂 导入恢复</button>
-  <input type="file" id="fileImport" accept=".json,.xlsx" style="display:none">
-</div>
-
-<script src="xlsx.full.min.js?v=20260808c"></script>
-<script src="calc.js?v=20260808c"></script>
-<script src="db.js?v=20260808c"></script>
-<script src="export.js?v=20260808c"></script>
-<script src="app.js?v=20260808c"></script>
+<script src="xlsx.full.min.js?v=20260808d"></script>
+<script src="calc.js?v=20260808d"></script>
+<script src="db.js?v=20260808d"></script>
+<script src="export.js?v=20260808d"></script>
+<script src="app.js?v=20260808d"></script>
 <script>App.init();</script>
 </body>
 </html>
