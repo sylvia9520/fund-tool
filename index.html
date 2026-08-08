@@ -126,7 +126,12 @@
       <button class="btn small" onclick="App.doExportExcel()">📥 导出Excel</button>
       <button class="btn small" onclick="App.doExportBackup()">💾 JSON备份</button>
       <button class="btn small" onclick="document.getElementById('fileImport').click()">📂 导入恢复</button>
-      <input type="file" id="fileImport" accept=".json,.xlsx" style="display:none">
+      <button class="btn small" onclick="App.showPasteImport()">📋 粘贴导入</button>
+      <input type="file" id="fileImport" accept=".json,.xlsx,.txt,.bak" style="display:none">
+    </div>
+    <div id="pasteBox" style="display:none;margin-top:8px;">
+      <textarea id="pasteArea" rows="5" style="width:100%;border:1px solid #ccd2da;border-radius:8px;padding:8px;font-size:12px;" placeholder="在 OneDrive 打开备份文件（.txt 或 .json），全选复制，粘贴到这里，点下方按钮导入"></textarea>
+      <div style="display:flex;justify-content:flex-end;margin-top:6px;"><button class="btn primary" onclick="App.doPasteImport()">导入粘贴内容</button></div>
     </div>
     <div class="row"><label>筛选基金</label><select id="histFundFilter"></select></div>
     <div style="display:flex;justify-content:flex-end;margin-top:8px;">
@@ -142,11 +147,11 @@
   <div id="settingsBox"></div>
 </div>
 
-<script src="xlsx.full.min.js?v=20260808e"></script>
-<script src="calc.js?v=20260808e"></script>
-<script src="db.js?v=20260808e"></script>
-<script src="export.js?v=20260808e"></script>
-<script src="app.js?v=20260808e"></script>
+<script src="xlsx.full.min.js?v=20260808f"></script>
+<script src="calc.js?v=20260808f"></script>
+<script src="db.js?v=20260808f"></script>
+<script src="export.js?v=20260808f"></script>
+<script src="app.js?v=20260808f"></script>
 <script>App.init();</script>
 </body>
 </html>

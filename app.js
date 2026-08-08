@@ -46,7 +46,8 @@ const App = (function () {
   function saveToOneDrive() {
     recomputeAll();
     const fnX = genBackupName(); // xlsx 名
-    const fnJ = '理财基金v3版JSON' + fnX.replace(/^理财基金v3版/, '').replace(/\.xlsx$/, '.json'); // 对应 json 名
+    // JSON 备份用 .txt 后缀（OneDrive/iOS 对 .json 限制多，txt 可自由下载存储；内容仍是 JSON）
+    const fnJ = '理财基金v3版JSON' + fnX.replace(/^理财基金v3版/, '').replace(/\.xlsx$/, '.txt');
     const wb = buildWorkbook();
     const dataX = XLSX_OBJ.write(wb, { bookType: 'xlsx', type: 'array' });
     const blobX = new Blob([dataX], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
@@ -801,19 +802,39 @@ const App = (function () {
     if (!file) return;
     EXPORT.parseBackup(file).then(function (data) {
       if (data.funds && data.funds.length) {
-        // JSON 全量备份
-        return DB.clear('funds').then(function () { return DB.clear('records'); }).then(function () { return DB.clear('audit'); }).then(function () {
-          return Promise.all(data.funds.map(function (f) { return DB.put('funds', f); }))
-            .then(function () { return Promise.all((data.records || []).map(function (r) { return DB.put('records', r); })); })
-            .then(function () { return Promise.all((data.audits || []).map(function (a) { return DB.put('audit', a); })); });
-        }).then(function () {
-          alert('导入成功：基金 ' + data.funds.length + '，记录 ' + (data.records || []).length + '。页面将刷新。');
-          location.reload();
-        });
+        return importJSONData(data);
       } else {
         alert('Excel 明细导入仅支持 JSON 全量备份的完整恢复；Excel 请用于查看/对账。');
       }
     }).catch(function (err) { alert('导入失败：' + err.message); });
+  }
+
+  // JSON 全量恢复（清空后写入），供文件导入与剪贴板导入共用
+  function importJSONData(data) {
+    return DB.clear('funds').then(function () { return DB.clear('records'); }).then(function () { return DB.clear('audit'); }).then(function () {
+      return Promise.all(data.funds.map(function (f) { return DB.put('funds', f); }))
+        .then(function () { return Promise.all((data.records || []).map(function (r) { return DB.put('records', r); })); })
+        .then(function () { return Promise.all((data.audits || []).map(function (a) { return DB.put('audit', a); })); });
+    }).then(function () {
+      alert('导入成功：基金 ' + data.funds.length + '，记录 ' + (data.records || []).length + '。页面将刷新。');
+      location.reload();
+    });
+  }
+
+  // 剪贴板粘贴导入（手机 OneDrive 打开备份 → 全选复制 → 粘贴），绕开文件系统限制
+  function showPasteImport() {
+    const box = document.getElementById('pasteBox');
+    if (box) box.style.display = 'block';
+  }
+  function doPasteImport() {
+    const area = document.getElementById('pasteArea');
+    const txt = area ? area.value.trim() : '';
+    if (!txt) { alert('请先粘贴备份内容'); return; }
+    try {
+      const data = JSON.parse(txt);
+      if (!data.funds || !Array.isArray(data.funds)) { alert('不是有效的备份内容（缺少 funds 数据）'); return; }
+      importJSONData(data);
+    } catch (e) { alert('内容解析失败：' + e.message); }
   }
 
   // ---------- 初始化 ----------
@@ -858,7 +879,8 @@ const App = (function () {
     confirmToday: confirmToday, setActual: setActual, renderHistory: renderHistory,
     delRecord: delRecord, renderSettings: renderSettings, addFund: addFund, delFund: delFund,
     goToday: goToday, doExportExcel: doExportExcel, doExportBackup: doExportBackup,
-    saveToOneDrive: saveToOneDrive, toggleAudit: toggleAudit
+    saveToOneDrive: saveToOneDrive, toggleAudit: toggleAudit,
+    showPasteImport: showPasteImport, doPasteImport: doPasteImport
   };
 })();
 
